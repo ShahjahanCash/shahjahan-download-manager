@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Download progress</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body class="detail">
+<div class="detail-card">
+  <h2 id="filename">Download</h2>
+  <div class="bar" id="main-bar"><div></div></div>
+  <div class="row"><span>URL</span><span id="url" class="mono"></span></div>
+  <div class="row"><span>Destination</span><span id="destination" class="mono"></span></div>
+  <div class="row"><span>Status</span><span id="status"></span></div>
+  <div class="row"><span>Progress</span><span id="progress" class="mono"></span></div>
+  <div class="row"><span>Speed</span><span id="speed" class="mono"></span></div>
+  <div class="row"><span>ETA</span><span id="eta" class="mono"></span></div>
+  <div class="row"><span>Engine</span><span id="engine" class="mono"></span></div>
+  <div class="row"><span>Command</span><span><span id="command" class="mono"></span> <button id="copy-command" class="secondary-btn small-btn">Copy</button></span></div>
+  <h3>Per-chunk progress</h3>
+  <div id="chunks"></div>
+  <p id="error" class="error"></p>
+</div>
+<script src="dialog.js"></script>
+</body>
+</html>

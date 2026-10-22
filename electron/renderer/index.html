@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shahjahan Download Manager</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon brand-icon-img">⬇</div>
+      <div class="brand-text">SHAHJAHAN<br />DOWNLOAD MANAGER</div>
+    </div>
+
+    <nav class="nav" id="filter-nav">
+      <button class="nav-item active" data-kind="status" data-value="all"><span class="nav-icon">▦</span> All Downloads <span class="count" id="count-all">0</span></button>
+      <button class="nav-item" data-kind="status" data-value="downloading"><span class="nav-icon">↓</span> Downloading <span class="count" id="count-downloading">0</span></button>
+      <button class="nav-item" data-kind="category" data-value="Compressed"><span class="nav-icon">▭</span> Compressed</button>
+      <button class="nav-item" data-kind="category" data-value="Documents"><span class="nav-icon">▤</span> Document</button>
+      <button class="nav-item" data-kind="category" data-value="Audio"><span class="nav-icon">♪</span> Music</button>
+      <button class="nav-item" data-kind="category" data-value="Programs"><span class="nav-icon">▣</span> Program</button>
+      <button class="nav-item" data-kind="category" data-value="Video"><span class="nav-icon">▶</span> Video</button>
+      <button class="nav-item" data-kind="status" data-value="completed"><span class="nav-icon">✓</span> Completed <span class="count" id="count-completed">0</span></button>
+      <button class="nav-item" data-kind="status" data-value="paused"><span class="nav-icon">⏸</span> Paused <span class="count" id="count-paused">0</span></button>
+      <button class="nav-item" data-kind="status" data-value="failed"><span class="nav-icon">✕</span> Failed <span class="count" id="count-failed">0</span></button>
+    </nav>
+
+    <div class="queues-head"><h4>Queues</h4></div>
+    <nav class="nav" id="queue-nav"></nav>
+    <div class="queue-add">
+      <input id="queue-name" type="text" placeholder="New queue name" maxlength="40" />
+      <button id="queue-create" class="secondary-btn small-btn" title="Create queue">＋</button>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="disk-card" id="disk-card">
+        <h4>Disk Space</h4>
+        <div class="disk-bar"><div id="disk-bar-fill" style="width:0%"></div></div>
+        <div class="disk-text" id="disk-text">Checking disk space…</div>
+      </div>
+      <button id="settings-btn" class="gear-btn" title="Open settings">⚙ Settings</button>
+      <p class="foot-note" id="foot-note">Max concurrent: 3<br />Segments download in parallel and resume from where they stopped.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input id="search" type="search" placeholder="Search Tasks" autocomplete="off" />
+      </div>
+      <div class="top-actions">
+        <button id="yt-task" class="yt-btn" title="Download a YouTube video or playlist">▶ YouTube</button>
+        <button id="grab-task" class="tool-btn" title="Download many links from one web page">🌐 Grab</button>
+        <button id="new-task" class="new-task-btn">＋ New Task</button>
+        <button id="view-toggle" class="view-btn" title="Toggle list / grid view">▦</button>
+      </div>
+    </header>
+
+    <section class="add-card" id="add-card">
+      <div class="add-head">
+        <h1>New Download Task</h1>
+        <button id="add-close" class="icon-btn" title="Close">✕</button>
+      </div>
+      <label class="field-label">URL</label>
+      <input id="url" type="url" placeholder="https://example.com/file.zip or magnet:?xt=urn:btih:…" autocomplete="off" spellcheck="false" />
+      <div class="add-row">
+        <div class="field">
+          <label class="field-label">Category</label>
+          <select id="category">
+            <option value="">Auto (by file type)</option>
+            <option value="Video">Video</option>
+            <option value="Audio">Music</option>
+            <option value="Documents">Document</option>
+            <option value="Compressed">Compressed</option>
+            <option value="Programs">Program</option>
+            <option value="General">Other</option>
+          </select>
+        </div>
+      </div>
+      <button id="add-advanced-toggle" class="advanced-toggle" type="button" aria-expanded="false" aria-controls="add-advanced">Advanced options ▸</button>
+      <div id="add-advanced" class="advanced-section hidden">
+        <div class="add-row">
+          <div class="field">
+            <label class="field-label">Segments</label>
+            <select id="segments">
+              <option value="0" selected>Auto</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="16">16</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Speed limit (bytes/s)</label>
+            <input id="limit" type="number" min="0" placeholder="0 = unlimited" />
+          </div>
+        </div>
+        <div class="add-row">
+          <div class="field">
+            <label class="field-label">Queue</label>
+            <select id="queue"><option value="main">Main Queue</option></select>
+          </div>
+          <div class="field">
+            <label class="field-label">Expected SHA-256 (optional)</label>
+            <input id="expected-hash" type="text" placeholder="Verifies the file after download" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="field">
+            <label class="field-label">Live stream</label>
+            <label class="check-label"><input id="live-stream" type="checkbox" /> Live HLS capture (records until paused)</label>
+          </div>
+        </div>
+        <div class="add-row">
+          <div class="field">
+            <label class="field-label">Mirror URLs (optional, one per line)</label>
+            <textarea id="mirrors" rows="2" placeholder="Same file from another server — tried if the main link fails" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </div>
+      <p class="save-note">Save to: your Downloads folder, sorted by category. FTP links (ftp://, ftps://) download single-stream with resume. <span id="form-error" class="error"></span></p>
+      <div class="add-buttons">
+        <button id="add-later" class="secondary-btn" title="Clear the form">Cancel</button>
+        <button id="add" class="download-btn">⬇ Download</button>
+      </div>
+    </section>
+
+    <section class="add-card hidden" id="yt-card">
+      <div class="add-head">
+        <h1>▶ YouTube Downloader</h1>
+        <button id="yt-close" class="icon-btn" title="Close">✕</button>
+      </div>
+      <label class="field-label">YouTube URL</label>
+      <div class="yt-url-row">
+        <input id="yt-url" type="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" spellcheck="false" />
+        <button id="yt-fetch" class="secondary-btn">Fetch info</button>
+      </div>
+      <p class="save-note" id="yt-status"></p>
+      <div id="yt-info" class="yt-info hidden">
+        <img id="yt-thumb" alt="" />
+        <div class="yt-info-text">
+          <div id="yt-title" class="yt-title"></div>
+          <div id="yt-meta" class="yt-meta"></div>
+        </div>
+      </div>
+      <div class="add-row">
+        <div class="field">
+          <label class="field-label">Type</label>
+          <div class="segmented" id="yt-kind-segmented">
+            <button data-yt-kind="video" class="active">Video</button>
+            <button data-yt-kind="audio">Audio only</button>
+          </div>
+        </div>
+        <div class="field" id="yt-video-quality-field">
+          <label class="field-label">Video quality (max)</label>
+          <select id="yt-quality">
+            <option value="best">Best available</option>
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p</option>
+            <option value="1080" selected>1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+          </select>
+        </div>
+      </div>
+      <button id="yt-advanced-toggle" class="advanced-toggle" type="button" aria-expanded="false" aria-controls="yt-advanced">Advanced options ▸</button>
+      <div id="yt-advanced" class="advanced-section hidden">
+      <div class="add-row">
+        <div class="field" id="yt-container-field">
+          <label class="field-label">Container</label>
+          <select id="yt-container">
+            <option value="best">Best (source)</option>
+            <option value="mp4" selected>MP4</option>
+            <option value="webm">WebM</option>
+          </select>
+        </div>
+        <div class="field hidden" id="yt-audio-format-field">
+          <label class="field-label">Audio format</label>
+          <select id="yt-audio-format">
+            <option value="mp3" selected>MP3</option>
+            <option value="m4a">M4A</option>
+            <option value="opus">Opus</option>
+            <option value="wav">WAV</option>
+            <option value="flac">FLAC</option>
+          </select>
+        </div>
+        <div class="field hidden" id="yt-audio-quality-field">
+          <label class="field-label">Audio quality</label>
+          <select id="yt-audio-quality">
+            <option value="best">Best</option>
+            <option value="320">320 kbps</option>
+            <option value="192" selected>192 kbps</option>
+            <option value="128">128 kbps</option>
+          </select>
+        </div>
+      </div>
+      <div class="add-row">
+        <div class="field">
+          <label class="field-label">Subtitles</label>
+          <div class="yt-checks">
+            <label><input id="yt-subs" type="checkbox" /> Download subtitles</label>
+            <select id="yt-sub-lang">
+              <option value="en" selected>English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ur">Urdu</option>
+              <option value="hi">Hindi</option>
+              <option value="ar">Arabic</option>
+              <option value="all">All languages</option>
+            </select>
+          </div>
+          <div class="yt-checks">
+            <label><input id="yt-auto-subs" type="checkbox" /> Include auto-generated</label>
+            <label><input id="yt-embed-subs" type="checkbox" /> Embed in video (needs ffmpeg)</label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Playlist</label>
+          <div class="yt-checks">
+            <label><input id="yt-playlist" type="checkbox" /> Download full playlist</label>
+          </div>
+          <div class="yt-checks">
+            <label>From <input id="yt-pl-start" class="small-number" type="number" min="1" placeholder="1" /></label>
+            <label>To <input id="yt-pl-end" class="small-number" type="number" min="1" placeholder="end" /></label>
+          </div>
+        </div>
+      </div>
+      <div class="yt-checks yt-extras">
+        <label>Browser cookies (age-restricted / login videos)
+          <select id="yt-cookies-browser">
+            <option value="none">None</option>
+            <option value="chrome">Chrome</option>
+            <option value="edge">Edge</option>
+            <option value="firefox">Firefox</option>
+            <option value="brave">Brave</option>
+          </select>
+        </label>
+        <label>Cookies file <span id="yt-cookies-file-label" class="mono">none</span>
+          <button id="yt-cookies-file-btn" class="secondary-btn small-btn" type="button">Browse…</button>
+          <button id="yt-cookies-file-clear" class="secondary-btn small-btn" type="button">Clear</button>
+        </label>
+        <label><input id="yt-embed-thumb" type="checkbox" checked /> Embed thumbnail (needs ffmpeg)</label>
+        <label><input id="yt-embed-meta" type="checkbox" checked /> Embed metadata &amp; chapters (needs ffmpeg)</label>
+        <label><input id="yt-sponsorblock" type="checkbox" /> Remove sponsor segments (needs ffmpeg)</label>
+        <label>Parallel fragments
+          <select id="yt-fragments">
+            <option value="1">1</option>
+            <option value="4" selected>4</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+      </div>
+      </div>
+      <p class="yt-tools" id="yt-tools">Checking tools…</p>
+      <div class="yt-tools-btns">
+        <button id="yt-install-ytdlp" class="secondary-btn small-btn hidden">Download yt-dlp</button>
+        <button id="yt-install-ffmpeg" class="secondary-btn small-btn hidden">Download ffmpeg (~115 MB)</button>
+      </div>
+      <p class="save-note">Saves to your Downloads folder, sorted by category (Video / Music). Pause resumes from yt-dlp's partial files.</p>
+      <div class="add-buttons">
+        <button id="yt-cancel" class="secondary-btn">Cancel</button>
+        <button id="yt-download" class="download-btn">⬇ Download</button>
+      </div>
+    </section>
+
+    <section class="add-card hidden" id="grab-card">
+      <div class="add-head">
+        <h1>🌐 Site Grabber</h1>
+        <button id="grab-close" class="icon-btn" title="Close">✕</button>
+      </div>
+      <label class="field-label">Page URL</label>
+      <div class="yt-url-row">
+        <input id="grab-url" type="url" placeholder="https://example.com/page" autocomplete="off" spellcheck="false" />
+        <button id="grab-fetch" class="secondary-btn">Fetch links</button>
+      </div>
+      <p class="save-note" id="grab-status"></p>
+      <div class="grab-tools hidden" id="grab-tools">
+        <label>Show
+          <select id="grab-filter">
+            <option value="all">All links</option>
+            <option value="media">Media only</option>
+            <option value="image">Images only</option>
+            <option value="document">Documents only</option>
+            <option value="archive">Archives only</option>
+          </select>
+        </label>
+        <button id="grab-all" class="secondary-btn small-btn">Select all</button>
+        <button id="grab-none" class="secondary-btn small-btn">Select none</button>
+        <span id="grab-count" class="mono"></span>
+      </div>
+      <div id="grab-list" class="grab-list"></div>
+      <div class="add-buttons">
+        <button id="grab-cancel" class="secondary-btn">Cancel</button>
+        <button id="grab-download" class="download-btn">⬇ Download selected</button>
+      </div>
+    </section>
+
+    <div class="action-toolbar">
+      <button id="resume-all" class="tool-btn" title="Resume all paused downloads">▶ Resume All</button>
+      <button id="pause-all" class="tool-btn" title="Pause all active downloads">⏸ Pause All</button>
+      <button id="clear-completed" class="tool-btn" title="Remove finished downloads from the list">🗑 Clear Completed</button>
+      <button id="widget-btn" class="tool-btn" title="Small always-on-top speed window">◉ Speed Monitor</button>
+      <button id="options-btn" class="tool-btn" title="Open settings">⚙ Options</button>
+      <label class="sort-label">Sort
+        <select id="sort-select" class="setting-select">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="name">Name A–Z</option>
+          <option value="size-desc">Largest first</option>
+          <option value="status">Status</option>
+        </select>
+      </label>
+    </div>
+
+    <section class="toolbar">
+      <div class="stats">
+        <div class="stat"><span class="stat-value mono" id="stat-speed">0 B/s</span><span class="stat-label">Total speed</span></div>
+        <div class="stat"><canvas id="speed-graph" width="180" height="28"></canvas><span class="stat-label">Speed history</span></div>
+        <div class="stat"><span class="stat-value mono" id="stat-active">0</span><span class="stat-label">Active</span></div>
+        <div class="stat"><span class="stat-value mono" id="stat-done">0</span><span class="stat-label">Completed</span></div>
+      </div>
+      <h2 id="list-title">All Downloads</h2>
+      <span class="list-count mono" id="list-count"></span>
+    </section>
+
+    <div class="list-header" id="list-header">
+      <span><input type="checkbox" id="select-all" title="Select all shown" /></span><span></span><span>File</span><span>Size</span><span>Status</span><span>Time Left</span><span>Date</span><span></span>
+    </div>
+    <div id="bulk-bar" class="bulk-bar hidden">
+      <span id="bulk-count"></span>
+      <button id="bulk-pause" class="secondary-btn small-btn">⏸ Pause selected</button>
+      <button id="bulk-resume" class="secondary-btn small-btn">▶ Resume selected</button>
+      <button id="bulk-delete" class="secondary-btn small-btn danger-text">🗑 Delete selected</button>
+      <button id="bulk-clear" class="secondary-btn small-btn">Clear selection</button>
+    </div>
+    <div id="jobs" class="job-list"></div>
+
+    <div id="empty" class="empty">
+      <div class="empty-icon">⬇</div>
+      <h3 id="empty-title">No downloads yet</h3>
+      <p id="empty-text">Press <strong>＋ New Task</strong> above, paste a URL, and press Download.<br />Paused downloads resume — nothing is lost if you close the app.</p>
+      <button id="empty-add" class="download-btn">＋ Add download</button>
+    </div>
+  </main>
+<footer id="bottom-bar">
+  <span id="bottom-status">No active downloads</span>
+  <span class="bottom-right"><span id="bottom-percent"></span><span id="bottom-speed">0 B/s</span></span>
+</footer>
+</div>
+
+<!-- First-run setup wizard (0.7.0, stepped in 0.7.2): shown once, until Finish or Skip is pressed. -->
+<div id="wizard-overlay" class="modal-overlay hidden">
+  <div class="modal settings-modal" role="dialog" aria-label="First-time setup">
+    <div class="modal-head">
+      <h2>👋 Welcome to Shahjahan Download Manager</h2>
+    </div>
+    <p class="setting-hint">A quick setup — you can change all of this later in Settings.</p>
+    <p class="wiz-steps" id="wiz-step-label">Step 1 of 4 · Look</p>
+    <div class="wiz-step" id="wiz-step-1">
+      <div class="setting-row">
+        <div><div class="setting-label">Theme</div><div class="setting-hint">Applies live, so you see it right away.</div></div>
+        <select id="wiz-theme" class="setting-select">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+          <option value="glass">Glass</option>
+          <option value="liquid">Liquid Glass</option>
+          <option value="ocean">Ocean</option>
+          <option value="ember">Ember</option>
+          <option value="high-contrast">High contrast</option>
+          <option value="system">System</option>
+          <option value="dracula">Dracula</option>
+          <option value="mocha">Catppuccin Mocha</option>
+          <option value="eink">E-Ink Day</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Accent colour</div><div class="setting-hint">Buttons, progress bars and highlights.</div></div>
+        <div class="swatches" id="wiz-accent-swatches">
+          <button data-wiz-accent-value="figma" style="--swatch:linear-gradient(135deg,#a855f7,#22d3ee)" title="Figma Gradient"></button>
+          <button data-wiz-accent-value="green" style="--swatch:#60cd38" title="Apple Green"></button>
+          <button data-wiz-accent-value="blue" style="--swatch:#2d96f6" title="Bleu De France"></button>
+          <button data-wiz-accent-value="purple" style="--swatch:#9542d6" title="Dark Orchid"></button>
+          <button data-wiz-accent-value="orange" style="--swatch:#f97316" title="Sunset Orange"></button>
+          <button data-wiz-accent-value="teal" style="--swatch:#0d9488" title="Teal"></button>
+        </div>
+      </div>
+      <div class="wiz-preview">
+        <div class="wiz-preview-row"><span class="wiz-preview-tile">▶</span><span class="wiz-preview-name">Example video.mp4</span><span class="wiz-preview-speed">12.4 MB/s</span></div>
+        <div class="bar wiz-preview-bar"><div style="width:62%"></div></div>
+        <button class="download-btn" type="button">Download</button>
+      </div>
+    </div>
+    <div class="wiz-step hidden" id="wiz-step-2">
+      <div class="setting-row folder-row">
+        <div><div class="setting-label">Downloads folder</div><div class="setting-hint">New downloads go here, sorted by category.</div></div>
+        <div class="folder-controls">
+          <input id="wiz-folder" class="setting-input folder-input" type="text" spellcheck="false" />
+          <button id="wiz-folder-browse" class="secondary-btn small-btn">Browse…</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Default speed limit (bytes/s)</div><div class="setting-hint">0 = unlimited.</div></div>
+        <input id="wiz-limit" class="setting-input" type="number" min="0" placeholder="0" />
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">Default segments</div><div class="setting-hint">Parallel connections per download. Auto picks by file size.</div></div>
+        <select id="wiz-segments" class="setting-select">
+          <option value="0">Auto</option>
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="16">16</option>
+        </select>
+      </div>
+    </div>
+    <div class="wiz-step hidden" id="wiz-step-3">
+      <p class="setting-hint">YouTube downloads need these tools. This status is checked fresh every time you open this step — never a stale warning.</p>
+      <div class="setting-row">
+        <div><div class="setting-label">yt-dlp</div><div class="setting-hint">Downloads video and audio from 1,000+ sites.</div></div>
+        <span id="wiz-tool-ytdlp">Checking…</span>
+        <button id="wiz-install-ytdlp" class="secondary-btn small-btn hidden">Install</button>
+      </div>
+      <div class="setting-row">
+        <div><div class="setting-label">ffmpeg</div><div class="setting-hint">Merges video + audio and handles subtitles.</div></div>
+        <span id="wiz-tool-ffmpeg">Checking…</span>
+        <button id="wiz-install-ffmpeg" class="secondary-btn small-btn hidden">Install</button>
+      </div>
+    </div>
+    <div class="wiz-step hidden" id="wiz-step-4">
+      <p class="setting-hint"><strong>Use it responsibly:</strong> only download files you have the right to save — your own uploads, public-domain work, and videos whose creators allow downloading.</p>
+      <p class="setting-hint"><strong>Browser extension:</strong> the extension zip ships with this release. In Chrome open <span class="mono">chrome://extensions</span>, turn Developer mode ON, press Load unpacked, and select the unzipped extension folder. It connects to this app automatically when the app is running.</p>
+    </div>
+    <div class="modal-foot">
+      <button id="wiz-skip" class="secondary-btn small-btn">Skip setup</button>
+      <span class="wiz-nav">
+        <button id="wiz-back" class="secondary-btn small-btn" disabled>Back</button>
+        <button id="wiz-next" class="secondary-btn small-btn">Next</button>
+        <button id="wiz-finish" class="download-btn hidden">Finish setup</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Settings: everything applies live as you change it. -->
+<div id="settings-overlay" class="modal-overlay hidden">
+  <div class="modal settings-modal" role="dialog" aria-label="Settings">
+    <div class="modal-head">
+      <h2>⚙ Settings</h2>
+      <button id="settings-close" class="icon-btn" title="Close settings">✕</button>
+    </div>
+
+    <input id="settings-search" class="setting-input settings-search" type="search" placeholder="Search settings…" spellcheck="false" />
+    <h3 class="settings-section">Appearance <button class="section-reset" data-reset-section="appearance" title="Reset this section">Reset</button></h3>
+    <div class="setting-row">
+      <div><div class="setting-label">Theme</div><div class="setting-hint">System follows your Windows light / dark setting.</div></div>
+      <div class="segmented" id="theme-segmented">
+        <button data-theme-value="light">Light</button>
+        <button data-theme-value="dark">Dark</button>
+        <button data-theme-value="glass">Glass</button>
+        <button data-theme-value="liquid">Liquid Glass</button>
+        <button data-theme-value="ocean">Ocean</button>
+        <button data-theme-value="ember">Ember</button>
+        <button data-theme-value="high-contrast">High contrast</button>
+        <button data-theme-value="system">System</button>
+        <button data-theme-value="dracula">Dracula</button>
+        <button data-theme-value="mocha">Catppuccin Mocha</button>
+        <button data-theme-value="eink">E-Ink Day</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Font size</div><div class="setting-hint">Scales the whole interface; helps on small or high-DPI screens.</div></div>
+      <div class="segmented" id="fontsize-segmented">
+        <button data-fontsize-value="small">Small</button>
+        <button data-fontsize-value="default">Default</button>
+        <button data-fontsize-value="large">Large</button>
+        <button data-fontsize-value="xl">Extra large</button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Accent colour</div><div class="setting-hint">Buttons, progress bars and highlights.</div></div>
+      <div class="swatches" id="accent-swatches">
+        <button data-accent-value="figma" style="--swatch:linear-gradient(135deg,#a855f7,#22d3ee)" title="Figma Gradient"></button>
+        <button data-accent-value="green" style="--swatch:#60cd38" title="Apple Green"></button>
+        <button data-accent-value="blue" style="--swatch:#2d96f6" title="Bleu De France"></button>
+        <button data-accent-value="purple" style="--swatch:#9542d6" title="Dark Orchid"></button>
+        <button data-accent-value="orange" style="--swatch:#f97316" title="Sunset Orange"></button>
+        <button data-accent-value="teal" style="--swatch:#0d9488" title="Teal"></button>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Layout density</div><div class="setting-hint">Compact fits more downloads on screen.</div></div>
+      <div class="segmented" id="density-segmented">
+        <button data-density-value="comfortable">Comfortable</button>
+        <button data-density-value="compact">Compact</button>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div><div class="setting-label">Typography preset</div><div class="setting-hint">Sets font size and density together.</div></div>
+      <select id="typography-preset" class="setting-select">
+        <option value="default">Default</option>
+        <option value="compact">Compact</option>
+        <option value="reading">Reading</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+    <div class="appearance-preview">
+      <div class="appearance-preview-row"><span class="wiz-preview-tile">▶</span><span class="appearance-preview-name">Example video.mp4</span><span class="appearance-preview-speed">12.4 MB/s</span></div>
+      <div class="bar"><div style="width:62%"></div></div>
+      <button class="download-btn" type="button">Download</button>
+    </div>
+
+    <h3 class="settings-section">Downloads <button class="section-reset" data-reset-section="downloads" title="Reset this section">Reset</button></h3>
+    <div class="setting-row">
+      <div><div class="setting-label">Default segments</div><div class="setting-hint">Parallel connections per new download.</div></div>
+      <select id="set-segments" class="setting-select">
+        <option value="0">Auto</option>
+        <option value="4">4</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Default speed limit</div><div class="setting-hint">0 = unlimited, for new downloads.</div></div>
+      <input id="set-limit" class="setting-input" type="number" min="0" placeholder="0" />
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Max concurrent downloads</div><div class="setting-hint">Saved — survives app restarts.</div></div>
+      <select id="set-concurrent" class="setting-select">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+    <div class="setting-row folder-row">
+      <div><div class="setting-label">Downloads folder</div><div class="setting-hint">New downloads go here, sorted by category. Saved.</div></div>
+      <div class="folder-controls">
+        <input id="set-folder" class="setting-input folder-input" type="text" spellcheck="false" />
+        <button id="set-folder-browse" class="secondary-btn small-btn">Browse…</button>
+        <button id="set-folder-open" class="secondary-btn small-btn">Open folder</button>
+      </div>
+    </div>
+
+    <h3 class="settings-section">Automation <button class="section-reset" data-reset-section="automation" title="Reset this section">Reset</button></h3>
+    <div class="setting-row">
+      <div><div class="setting-label">When all downloads finish</div><div class="setting-hint">Shutdown and sleep always ask first.</div></div>
+      <select id="set-complete-action" class="setting-select">
+        <option value="none">Do nothing</option>
+        <option value="shutdown">Shut down PC</option>
+        <option value="sleep">Sleep PC</option>
+        <option value="restart">Restart PC</option>
+        <option value="close-app">Close the app</option>
+      </select>
+    </div>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Clipboard monitor</div><div class="setting-hint">Copied download links open the New Task form automatically.</div></div>
+      <input id="set-clipboard" type="checkbox" />
+    </label>
+    <div class="setting-row">
+      <div><div class="setting-label">Proxy (HTTP/HTTPS)</div><div class="setting-hint">e.g. http://127.0.0.1:8080 — applies to downloads, streams and yt-dlp. Empty = direct.</div></div>
+      <input id="set-proxy" class="setting-input" type="text" placeholder="http://host:port" spellcheck="false" />
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Failed download auto-retry</div><div class="setting-hint">Retries for network/server errors only (not 404 or auth errors).</div></div>
+      <div class="folder-controls">
+        <label class="mono">Attempts <input id="set-retry" class="setting-input small-number" type="number" min="0" max="10" /></label>
+        <label class="mono">Delay (s) <input id="set-retry-delay" class="setting-input small-number" type="number" min="1" max="300" /></label>
+      </div>
+    </div>
+
+    <h3 class="settings-section">Queue speed limits <button class="section-reset" data-reset-section="queues" title="Reset this section">Reset</button></h3>
+    <p class="setting-hint">A queue cap limits every download in that queue (0 = no cap). A per-download limit below the cap still wins.</p>
+    <div id="queue-limits"></div>
+
+    <h3 class="settings-section">Category folders <button class="section-reset" data-reset-section="categories" title="Reset this section">Reset</button></h3>
+    <p class="setting-hint">Empty = the main downloads folder, sorted by category.</p>
+    <div id="cat-folders"></div>
+
+    <h3 class="settings-section">Display <button class="section-reset" data-reset-section="display" title="Reset this section">Reset</button></h3>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Show per-chunk progress bars</div><div class="setting-hint">The small blue segment bars under each download.</div></div>
+      <input id="set-chunks" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Show file path under each download</div><div class="setting-hint">Full save location, under the file name.</div></div>
+      <input id="set-path" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Completion toast</div><div class="setting-hint">Pop-up inside the app when a download finishes.</div></div>
+      <input id="set-toast" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Reduce effects (low-end PC)</div><div class="setting-hint">Turns off blur, animations and transitions for a smoother experience on weak hardware.</div></div>
+      <input id="set-effects" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Windows notifications</div><div class="setting-hint">Real OS notification when a download finishes; click it to open the app.</div></div>
+      <input id="set-native-notif" type="checkbox" />
+    </label>
+
+    <h3 class="settings-section">Download scheduler <button class="section-reset" data-reset-section="scheduler" title="Reset this section">Reset</button></h3>
+    <p class="setting-hint">When enabled, downloads only run inside these local-time windows (e.g. overnight off-peak hours). Running downloads pause when a window closes and resume when the next one opens.</p>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Enable scheduled windows</div></div>
+      <input id="set-sched-enabled" type="checkbox" />
+    </label>
+    <div class="setting-row folder-row">
+      <div><div class="setting-label">New window (24-hour, HH:MM)</div></div>
+      <div class="folder-controls">
+        <label class="mono">From <input id="sched-start" class="setting-input small-number" type="time" value="22:00" /></label>
+        <label class="mono">To <input id="sched-end" class="setting-input small-number" type="time" value="06:00" /></label>
+        <button id="sched-add" class="secondary-btn small-btn">Add window</button>
+      </div>
+    </div>
+    <div id="sched-windows"></div>
+
+    <h3 class="settings-section">Smart speed limit <button class="section-reset" data-reset-section="smart" title="Reset this section">Reset</button></h3>
+    <p class="setting-hint">While a watched program (game, stream, call) is running, new downloads use the lower cap below. A cap of 0 means no new downloads start while gaming.</p>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Lower the limit while gaming / streaming</div></div>
+      <input id="set-smart-enabled" type="checkbox" />
+    </label>
+    <div class="setting-row">
+      <div><div class="setting-label">Smart cap (bytes/s)</div></div>
+      <input id="set-smart-limit" class="setting-input" type="number" min="0" placeholder="e.g. 500000" />
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Watch these programs (one per line)</div><div class="setting-hint">Process names, e.g. eldenring.exe, obs64.exe. Checked every 30 seconds on Windows.</div></div>
+      <textarea id="set-smart-watchlist" rows="3" class="setting-input" spellcheck="false"></textarea>
+    </div>
+
+    <h3 class="settings-section">After download <button class="section-reset" data-reset-section="after" title="Reset this section">Reset</button></h3>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Auto-extract ZIP / RAR</div><div class="setting-hint">ZIP uses built-in Windows PowerShell; RAR needs 7-Zip on PATH. Windows only.</div></div>
+      <input id="set-extract" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Windows Defender scan</div><div class="setting-hint">Scans each finished file with MpCmdRun and shows Clean / Threat on the job. Windows only.</div></div>
+      <input id="set-scan" type="checkbox" />
+    </label>
+
+    <h3 class="settings-section">Torrent seeding <button class="section-reset" data-reset-section="seeding" title="Reset this section">Reset</button></h3>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Keep seeding after a torrent finishes</div></div>
+      <input id="set-seed-enabled" type="checkbox" />
+    </label>
+    <div class="setting-row folder-row">
+      <div><div class="setting-label">Stop seeding at…</div><div class="setting-hint">0 = no cap. Whichever cap hits first stops the torrent.</div></div>
+      <div class="folder-controls">
+        <label class="mono">Ratio <input id="set-seed-ratio" class="setting-input small-number" type="number" min="0" step="0.1" placeholder="0" /></label>
+        <label class="mono">Minutes <input id="set-seed-minutes" class="setting-input small-number" type="number" min="0" placeholder="0" /></label>
+      </div>
+    </div>
+
+    <h3 class="settings-section">Statistics</h3>
+    <div id="stats-panel" class="stats-panel">
+      <p class="setting-hint">Recorded locally from completed downloads. Press Refresh to update.</p>
+      <div class="stats-grid">
+        <div><span class="stat-value mono" id="stat-total">–</span><span class="stat-label">Total downloaded</span></div>
+        <div><span class="stat-value mono" id="stat-month">–</span><span class="stat-label">This month</span></div>
+        <div><span class="stat-value mono" id="stat-avg">–</span><span class="stat-label">Average speed</span></div>
+        <div><span class="stat-value mono" id="stat-jobs">–</span><span class="stat-label">Completed jobs</span></div>
+      </div>
+      <button id="stats-refresh" class="secondary-btn small-btn">Refresh statistics</button>
+    </div>
+
+    <h3 class="settings-section">Notifications <button class="section-reset" data-reset-section="notifications" title="Reset this section">Reset</button></h3>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Completion banners</div><div class="setting-hint">Windows notification when a download finishes.</div></div>
+      <input id="set-notif-banners" type="checkbox" />
+    </label>
+    <label class="setting-row check-row">
+      <div><div class="setting-label">Completion sound</div><div class="setting-hint">Short in-app chime when a download finishes.</div></div>
+      <input id="set-notif-sound" type="checkbox" />
+    </label>
+    <div class="setting-row folder-row">
+      <div><div class="setting-label">Quiet hours (no banners or sounds)</div></div>
+      <div class="folder-controls">
+        <label class="mono">From <input id="set-quiet-start" class="setting-input small-number" type="time" /></label>
+        <label class="mono">To <input id="set-quiet-end" class="setting-input small-number" type="time" /></label>
+      </div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Mute banners for categories</div></div>
+      <div id="notif-categories" class="check-list"></div>
+    </div>
+
+    <h3 class="settings-section">Keyboard shortcuts</h3>
+    <ul class="shortcut-list">
+      <li><kbd>Ctrl</kbd> + <kbd>N</kbd> — New download task</li>
+      <li><kbd>Space</kbd> — Pause / resume the selected downloads (ignored while typing)</li>
+      <li><kbd>Del</kbd> — Delete the selected downloads (asks first)</li>
+      <li><kbd>Esc</kbd> — Close menus and dialogs</li>
+    </ul>
+
+    <h3 class="settings-section">About</h3>
+    <p class="about-line"><strong>Shahjahan Download Manager</strong> · <span id="about-version">…</span><br />
+    Segmented, resumable downloads with browser interception, HLS / DASH streams and a local bridge for the extension. Nothing is uploaded anywhere; downloads run on your PC.</p>
+
+    <div class="modal-foot">
+      <button id="settings-reset" class="secondary-btn">Reset to defaults</button>
+      <button id="settings-done" class="download-btn">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="drop-overlay" class="drop-overlay hidden">Drop a link to download it</div>
+<div id="ctx-menu" class="ctx-menu hidden"></div>
+<div id="toast" class="toast hidden"></div>
+<script src="renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+{
+  "bin": {
+    "dm": "./dist/cli.js"
+  },
+  "description": "Windows download manager inspired by IDM: segmented, resumable downloads with queue, categories, scheduler, speed limiting, Electron UI, Native Messaging + loopback bridge, and a Manifest V3 browser extension with download interception and video overlay.",
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "main": "electron/main.mjs",
+  "name": "idm-style-download-manager",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "node dist/cli.js",
+    "electron": "npm run build && electron .",
+    "electron:smoke": "npm run build && xvfb-run -a electron --no-sandbox . --smoke-test",
+    "extension:check": "node scripts/check-extension.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --exactOptionalPropertyTypes --noUncheckedIndexedAccess --skipLibCheck tests/*.ts",
+    "dist:win": "electron-builder --win nsis",
+    "dist:win:dir": "electron-builder --win dir",
+    "packaging:check": "node scripts/check-packaging.mjs"
+  },
+  "type": "module",
+  "version": "0.7.3",
+  "author": "Shahjahan Download Manager",
+  "copyright": "Copyright \u00a9 2026 Shahjahan Download Manager",
+  "build": {
+    "appId": "com.downloadmanager.app",
+    "productName": "Shahjahan Download Manager",
+    "copyright": "Shahjahan Download Manager",
+    "directories": {
+      "output": "dist-installer",
+      "buildResources": "electron/build"
+    },
+    "npmRebuild": false,
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "electron/build/bin/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "electron/build/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Shahjahan Download Manager"
+    }
+  },
+  "dependencies": {
+    "basic-ftp": "^6.2.3",
+    "undici": "7.30.1",
+    "webtorrent": "^3.0.21"
+  }
+}

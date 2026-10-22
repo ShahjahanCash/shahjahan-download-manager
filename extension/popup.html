@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Download Manager</title>
+<style>
+  body { width: 380px; margin: 0; padding: 14px; font: 13px system-ui, sans-serif; color: #1a1a1a; }
+  h1 { font-size: 17px; margin: 0 0 8px; }
+  .status { padding: 8px; border-radius: 6px; background: #eee; margin-bottom: 12px; }
+  .status.ok { background: #e6f4ea; }
+  .status.bad { background: #fce8e6; }
+  label { display: block; margin: 6px 0; }
+  h2 { font-size: 14px; margin: 14px 0 6px; }
+  .video { border-top: 1px solid #ddd; padding: 8px 0; }
+  .video button { margin: 2px 4px 2px 0; }
+  .grab-row { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-top: 1px solid #eee; }
+  .grab-kind { font-size: 11px; text-transform: uppercase; color: #555; min-width: 70px; }
+  .grab-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #grab-list { max-height: 240px; overflow-y: auto; }
+  .note { color: #555; font-size: 12px; }
+  button { cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Download Manager</h1>
+<div id="status" class="status">Checking desktop app…</div>
+<label><input type="checkbox" id="intercept" /> Intercept browser downloads</label>
+<label><input type="checkbox" id="overlay" /> Show video download overlay</label>
+<h2>Videos on this page</h2>
+<div id="videos"><p class="note">No videos detected on this page yet.</p></div>
+<h2>Grab links on this page</h2>
+<button id="grab-btn">Grab links on this page</button>
+<p class="note" id="grab-status"></p>
+<div id="grab-list"></div>
+<button id="grab-send" style="display:none">Send selected to Download Manager</button>
+<p class="note">If the app is not connected, open the Download Manager desktop app, then reload this popup. First-time setup: load this extension unpacked, copy its id from chrome://extensions, then run <code>dm install-host --browser chrome --extension-id &lt;id&gt;</code> and reload the extension.</p>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "action": {
+    "default_icon": {
+      "128": "icons/icon128.png",
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    },
+    "default_popup": "popup.html",
+    "default_title": "Shahjahan Download Manager"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "download-manager@local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "content_scripts": [
+    {
+      "all_frames": false,
+      "js": [
+        "lib/parsers.js",
+        "content.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "all_frames": false,
+      "js": [
+        "lib/parsers.js",
+        "injected.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "description": "Intercept browser downloads and videos, and send them to the Shahjahan Download Manager desktop app.",
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "icons": {
+    "128": "icons/icon128.png",
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png"
+  },
+  "manifest_version": 3,
+  "name": "Shahjahan Download Manager",
+  "permissions": [
+    "downloads",
+    "nativeMessaging",
+    "storage",
+    "menus",
+    "cookies",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "notifications"
+  ],
+  "version": "0.6.7",
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "resources": [
+        "lib/parsers.js"
+      ]
+    }
+  ]
+}
