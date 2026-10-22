@@ -29,6 +29,17 @@ try {
     settings.theme = localStorage.getItem("dm-theme") === "dark" ? "dark" : "light";
   }
 } catch { /* corrupted settings: fall back to defaults */ }
+/* ---- 0.7.4 overhaul migration: existing installs see the new look
+   once; every other preference is preserved. The marker lives in its
+   own localStorage key so Reset-to-defaults never re-triggers it. */
+const OMNI_MIGRATION_KEY = "sdm-omni-migrated";
+try {
+  if (!localStorage.getItem(OMNI_MIGRATION_KEY)) {
+    settings.theme = "omni";
+    saveSettings();
+    localStorage.setItem(OMNI_MIGRATION_KEY, "1");
+  }
+} catch { /* storage unavailable: the in-memory theme above still applies for this run */ }
 let engineSettings = { downloadsDir: "", maxConcurrent: 3 };
 
 function resolvedTheme() {
@@ -95,6 +106,8 @@ function applyFormDefaults() {
 function syncSettingsForm() {
   document.getElementById("set-segments").value = String(settings.defaultSegments);
   document.getElementById("set-limit").value = settings.defaultLimit ? String(settings.defaultLimit) : "";
+  const viewLimit = document.getElementById("view-limit");
+  if (viewLimit) viewLimit.value = settings.defaultLimit ? String(settings.defaultLimit) : "";
   document.getElementById("set-concurrent").value = String(engineSettings.maxConcurrent);
   document.getElementById("set-folder").value = engineSettings.downloadsDir;
   document.getElementById("set-chunks").checked = settings.showChunks;
@@ -438,6 +451,8 @@ document.getElementById("set-limit").addEventListener("change", (event) => {
   saveSettings();
   applySettings();
   applyFormDefaults();
+  const viewLimit = document.getElementById("view-limit");
+  if (viewLimit) viewLimit.value = event.target.value;
 });
 document.getElementById("set-chunks").addEventListener("change", (event) => {
   settings.showChunks = event.target.checked;
@@ -510,20 +525,192 @@ toastEl.addEventListener("click", () => {
   clearTimeout(toastTimer);
 });
 
-// Filters: one sidebar list, Behance order — status or category.
+// Filters (0.7.4): Downloads-view chips for status, a category select,
+// and the sidebar queue list. One filter is active at a time, exactly
+// like the old sidebar list.
 let filterKind = "status";
 let filterValue = "all";
 let searchQuery = "";
 let gridView = false;
+let currentView = "home";
 
-document.getElementById("filter-nav").addEventListener("click", (event) => {
-  const btn = event.target.closest("button[data-value]");
-  if (!btn) return;
-  document.querySelectorAll("#filter-nav .nav-item, #queue-nav .nav-item").forEach((b) => b.classList.remove("active"));
-  btn.classList.add("active");
-  filterKind = btn.dataset.kind;
-  filterValue = btn.dataset.value;
+const viewHomeEl = document.getElementById("view-home");
+const viewDownloadsEl = document.getElementById("view-downloads");
+function syncViewNav() {
+  document.getElementById("nav-home")?.classList.toggle("active", currentView === "home");
+  document.getElementById("nav-downloads")?.classList.toggle("active", currentView === "downloads");
+}
+function showHomeView() {
+  currentView = "home";
+  viewHomeEl.classList.remove("hidden");
+  viewDownloadsEl.classList.add("hidden");
+  syncViewNav();
+}
+function showDownloadsView() {
+  currentView = "downloads";
+  viewHomeEl.classList.add("hidden");
+  viewDownloadsEl.classList.remove("hidden");
+  syncViewNav();
   refresh();
+}
+document.getElementById("nav-home").addEventListener("click", showHomeView);
+document.getElementById("nav-downloads").addEventListener("click", showDownloadsView);
+document.getElementById("bottom-view-downloads").addEventListener("click", showDownloadsView);
+document.getElementById("nav-about").addEventListener("click", () => {
+  openSettings();
+  document.getElementById("about-section")?.scrollIntoView({ block: "start" });
+});
+document.getElementById("sidebar-collapse").addEventListener("click", (event) => {
+  const collapsed = document.body.classList.toggle("sidebar-collapsed");
+  event.target.textContent = collapsed ? "▶" : "◀ Collapse sidebar";
+});
+
+const FILTER_TITLES = { all: "All Downloads", downloading: "Active", queued: "Queued", completed: "Completed", paused: "Paused", failed: "Failed" };
+function syncFilterControls() {
+  document.querySelectorAll("#filter-chips .chip").forEach((chip) => {
+    chip.classList.toggle("active", filterKind === "status" && chip.dataset.filterChip === filterValue);
+  });
+  const cat = document.getElementById("category-filter");
+  if (cat) cat.value = filterKind === "category" ? filterValue : "all";
+  if (filterKind !== "queue") {
+    document.querySelectorAll("#queue-nav .nav-item").forEach((b) => b.classList.remove("active"));
+  }
+}
+function setStatusFilter(value) {
+  filterKind = "status";
+  filterValue = value;
+  syncFilterControls();
+  refresh();
+}
+function setCategoryFilter(value) {
+  if (value === "all") {
+    setStatusFilter("all");
+    return;
+  }
+  filterKind = "category";
+  filterValue = value;
+  syncFilterControls();
+  refresh();
+}
+function filterTitle() {
+  if (filterKind === "queue") {
+    const queue = queueList.find((q) => q.id === filterValue);
+    return queue ? queue.name : "All Downloads";
+  }
+  if (filterKind === "category") return filterValue;
+  return FILTER_TITLES[filterValue] || "All Downloads";
+}
+document.getElementById("filter-chips").addEventListener("click", (event) => {
+  const chip = event.target.closest("button[data-filter-chip]");
+  if (!chip) return;
+  setStatusFilter(chip.dataset.filterChip);
+});
+document.getElementById("category-filter").addEventListener("change", (event) => {
+  setCategoryFilter(event.target.value);
+});
+document.getElementById("view-limit").addEventListener("change", (event) => {
+  // Mirror of the Settings default limit: reuse its own handler so
+  // saving and form defaults stay exactly the same as a manual change.
+  setSettingsInput("set-limit", event.target.value);
+});
+
+/* ---- Home view (0.7.4, OmniGet-style) ----
+ * Centered paste pill + preview card. Preview metadata is
+ * best-effort only: YouTube titles come from the existing yt-dlp
+ * info path, everything else from the URL itself — Download never
+ * waits on preview, and creating the job reuses submitDownload, the
+ * exact New Task path with its validation. */
+const homeUrlEl = document.getElementById("home-url");
+const homePreviewEl = document.getElementById("home-preview");
+const homeStatusEl = document.getElementById("home-status");
+let homePreviewUrl = "";
+function homeMetaFor(url) {
+  try {
+    const parsed = new URL(url);
+    const tail = parsed.pathname.split("/").filter(Boolean).pop() || "";
+    return { title: decodeURIComponent(tail) || parsed.hostname, meta: parsed.hostname, thumb: "" };
+  } catch {
+    return { title: url, meta: "", thumb: "" };
+  }
+}
+async function refreshHomePreview(withNetwork = false) {
+  const url = homeUrlEl.value.trim();
+  homePreviewUrl = url;
+  if (!url) {
+    homePreviewEl.classList.add("hidden");
+    homeStatusEl.textContent = "";
+    return;
+  }
+  let info = homeMetaFor(url);
+  // Network metadata only on paste/blur, never per keystroke: typing
+  // a YouTube URL must not spawn a yt-dlp info fetch on every letter.
+  if (withNetwork && /youtube\.com\/watch|youtu\.be\//i.test(url)) {
+    try {
+      const yt = await window.dm.ytInfo(url);
+      if (homePreviewUrl === url && yt) {
+        info = {
+          title: yt.title || info.title,
+          meta: [yt.uploader, yt.durationSeconds != null ? formatEta(yt.durationSeconds) : "", yt.isPlaylist ? "Playlist" : ""].filter(Boolean).join(" · ") || info.meta,
+          thumb: yt.thumbnail || "",
+        };
+      }
+    } catch { /* best-effort: fall back to the URL-derived preview */ }
+  }
+  if (homePreviewUrl !== url) return;
+  document.getElementById("home-title").textContent = info.title;
+  document.getElementById("home-meta").textContent = info.meta;
+  const thumb = document.getElementById("home-thumb");
+  if (info.thumb) thumb.src = info.thumb;
+  else thumb.removeAttribute("src");
+  homePreviewEl.classList.remove("hidden");
+}
+homeUrlEl.addEventListener("input", () => { void refreshHomePreview(false); });
+homeUrlEl.addEventListener("change", () => { void refreshHomePreview(true); });
+homeUrlEl.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    document.getElementById("home-download").click();
+  }
+});
+document.getElementById("home-paste").addEventListener("click", async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      homeUrlEl.value = text.trim();
+      await refreshHomePreview(true);
+    }
+  } catch { /* clipboard read needs permission: fall back to typing */ }
+  homeUrlEl.focus();
+});
+document.getElementById("home-download").addEventListener("click", async () => {
+  const url = homeUrlEl.value.trim();
+  if (!url) {
+    homeStatusEl.textContent = "Paste a link first.";
+    homeUrlEl.focus();
+    return;
+  }
+  homeStatusEl.textContent = "";
+  urlEl.value = url;
+  await submitDownload();
+  if (errorEl.textContent) {
+    // submitDownload reports into the (currently hidden) New Task
+    // form: surface it here instead of leaving the user guessing.
+    homeStatusEl.textContent = errorEl.textContent;
+    return;
+  }
+  homeUrlEl.value = "";
+  homePreviewEl.classList.add("hidden");
+  showDownloadsView();
+  showToast("Download added");
+});
+document.getElementById("home-new-task").addEventListener("click", () => {
+  showDownloadsView();
+  document.getElementById("new-task").click();
+});
+document.getElementById("home-yt").addEventListener("click", openYtCard);
+document.getElementById("home-grab").addEventListener("click", () => {
+  showDownloadsView();
+  document.getElementById("grab-task").click();
 });
 searchEl.addEventListener("input", () => {
   searchQuery = searchEl.value.trim().toLowerCase();
@@ -557,6 +744,7 @@ function wireAdvancedToggle(buttonId, sectionId) {
 }
 const collapseAddAdvanced = wireAdvancedToggle("add-advanced-toggle", "add-advanced");
 document.getElementById("new-task").addEventListener("click", () => {
+  showDownloadsView();
   collapseAddAdvanced();
   addCard.classList.remove("hidden");
   urlEl.focus();
@@ -689,10 +877,12 @@ async function refreshQueues() {
       btn.appendChild(del);
     }
     btn.addEventListener("click", () => {
-      document.querySelectorAll("#filter-nav .nav-item, #queue-nav .nav-item").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll("#filter-chips .chip").forEach((b) => b.classList.remove("active"));
+      document.querySelectorAll("#queue-nav .nav-item").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       filterKind = "queue";
       filterValue = queue.id;
+      showDownloadsView();
       refresh();
     });
     nav.appendChild(btn);
@@ -736,29 +926,31 @@ function createCard(job) {
   const card = document.createElement("article");
   card.className = "job-card";
   card.dataset.jobId = job.id;
-  // Figma-style table columns: select | tile | file | size | status | time left | date | actions.
+  // OmniGet-style card (0.7.4): tile + main column (title row, meta
+  // line, progress, stage chips). updateCard still finds every field
+  // by the same class names as before.
   card.innerHTML = `
     <div class="job-select"><input type="checkbox" data-select="${job.id}" title="Select for bulk actions" /></div>
     <div class="tile ${escapeHtml(job.category)}"><span class="tile-icon">${tile.icon}</span><span class="tile-ext">${tile.ext}</span></div>
-    <div class="job-info">
-      <div class="job-name"></div>
+    <div class="job-main">
+      <div class="job-top">
+        <div class="job-name"></div>
+        <div class="job-status"><span class="pill"></span></div>
+        <div class="job-actions"></div>
+      </div>
+      <div class="job-meta-line">
+        <span class="pct"></span>
+        <span class="sizes"></span>
+        <span class="speed"></span>
+        <span class="eta"></span>
+        <span class="job-date"></span>
+      </div>
       <div class="job-path"></div>
       <div class="bar"><div></div></div>
       <div class="chunk-bar"></div>
       <div class="stage-chips"></div>
       <div class="job-error"></div>
-    </div>
-    <div class="job-meta">
-      <div class="pct"></div>
-      <div class="sizes"></div>
-    </div>
-    <div class="job-status"><span class="pill"></span></div>
-    <div class="job-time">
-      <div class="speed"></div>
-      <div class="eta"></div>
-    </div>
-    <div class="job-date"></div>
-    <div class="job-actions"></div>`;
+    </div>`;
   card.querySelector(".job-name").textContent = job.filename;
   card.querySelector(".job-name").title = job.destination;
   card.querySelector(".job-path").textContent = job.destination;
@@ -1037,8 +1229,7 @@ function renderJobs(jobs) {
   document.getElementById("stat-done").textContent = String(counts.completed);
   updateBottomBar(jobs, totalSpeed);
 
-  const activeBtn = document.querySelector("#filter-nav .nav-item.active");
-  listTitleEl.textContent = activeBtn ? activeBtn.textContent.replace(/\s*\d+\s*$/, "").trim() : "All Downloads";
+  listTitleEl.textContent = filterTitle();
   listCountEl.textContent = visible.length ? `${visible.length} shown` : "";
 
   emptyEl.style.display = visible.length ? "none" : "block";
@@ -1147,6 +1338,7 @@ async function submitDownload() {
 // Clipboard monitor (feature 5) + drag & drop (feature 7): a copied
 // or dropped link prefills New Task instead of auto-downloading.
 window.dm.onClipboardUrl((url) => {
+  showDownloadsView();
   urlEl.value = url;
   addCard.classList.remove("hidden");
   showToast("Link copied — press Download to start it");
@@ -1173,6 +1365,7 @@ window.addEventListener("drop", (event) => {
   const match = /(https?|ftp):\/\/\S+/i.exec(text);
   if (!match) return;
   const url = match[0];
+  showDownloadsView();
   if (/youtube\.com\/watch|youtu\.be\//i.test(url)) {
     ytUrlEl.value = url;
     openYtCard();
@@ -1313,6 +1506,7 @@ async function refreshYtTools() {
   }
 }
 function openYtCard() {
+  showDownloadsView();
   collapseYtAdvanced();
   ytCard.classList.remove("hidden");
   refreshYtTools();
@@ -1455,6 +1649,7 @@ function renderGrabList() {
   void i;
 }
 document.getElementById("grab-task").addEventListener("click", () => {
+  showDownloadsView();
   grabCard.classList.remove("hidden");
   grabUrlEl.focus();
 });
@@ -1583,6 +1778,7 @@ document.getElementById("sort-select").addEventListener("change", (event) => {
 });
 document.getElementById("widget-btn").addEventListener("click", () => window.dm.toggleWidget());
 document.getElementById("empty-add").addEventListener("click", () => {
+  showDownloadsView();
   addCard.classList.remove("hidden");
   urlEl.focus();
 });
@@ -1592,6 +1788,7 @@ document.getElementById("empty-add").addEventListener("click", () => {
 document.addEventListener("keydown", async (event) => {
   if (event.ctrlKey && (event.key === "n" || event.key === "N")) {
     event.preventDefault();
+    showDownloadsView();
     addCard.classList.remove("hidden");
     urlEl.focus();
     return;

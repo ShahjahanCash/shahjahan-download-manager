@@ -30,7 +30,7 @@
     "packaging:check": "node scripts/check-packaging.mjs"
   },
   "type": "module",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "author": "Shahjahan Download Manager",
   "copyright": "Copyright \u00a9 2026 Shahjahan Download Manager",
   "build": {

@@ -227,23 +227,19 @@ button { cursor: pointer; }
 /* ---- Download rows: Figma-style table columns ---- */
 .job-list { display: flex; flex-direction: column; gap: 10px; }
 .job-list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-.list-header {
-  display: grid; grid-template-columns: 52px minmax(0, 1fr) 150px 110px 140px 100px auto;
-  gap: 14px; padding: 0 18px 8px; align-items: center;
-  font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
-}
-.list-header.hidden { display: none; }
-.list-header span:nth-child(4), .list-header span:nth-child(6), .list-header span:nth-child(7) { text-align: right; }
-.list-header span:nth-child(5) { text-align: center; }
+/* Cards need no column labels. */
+.list-header { display: none; }
+/* OmniGet-style card: tile + main column (title, meta line, progress,
+   stage chips), actions on the right. The DOM changed in 0.7.4, so the
+   old 8-column table grid is gone; updateCard still finds every field
+   by the same class names. */
 .job-card {
   background: var(--panel); border-radius: 16px; box-shadow: var(--shadow);
-  padding: 15px 18px; display: grid;
-  grid-template-columns: 52px minmax(0, 1fr) 150px 110px 140px 100px auto;
-  gap: 14px; align-items: center;
+  padding: 15px 18px; display: flex; gap: 14px; align-items: flex-start;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
+.job-card .job-select { align-self: center; }
 .job-list.grid .job-card { display: flex; flex-direction: column; align-items: stretch; }
-.job-list.grid .job-meta, .job-list.grid .job-time, .job-list.grid .job-date { text-align: left; }
 .job-card:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1); }
 .tile {
   width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
@@ -261,7 +257,6 @@ button { cursor: pointer; }
 .tile.Compressed { background: var(--yellow); color: #333; }
 .tile.Programs { background: var(--purple); }
 .tile.General { background: var(--text-2); }
-.job-info { flex: 1; min-width: 0; /* B8: without min-width:0 a long filename blows out the table grid */ }
 .job-name { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bar { height: 5px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 9px; }
 .bar > div { height: 100%; background: var(--accent-grad, var(--accent)); border-radius: 999px; transition: width 0.35s ease; }
@@ -275,13 +270,14 @@ button { cursor: pointer; }
   animation: shimmer 1.4s ease-in-out infinite;
 }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-.job-meta { text-align: right; }
-.job-meta .pct { font-weight: 700; font-size: 15px; }
-.job-meta .sizes { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-.job-status { text-align: center; }
-.job-status .pill { margin-top: 0; }
-.job-time { text-align: right; font-size: 12px; color: var(--text-2); line-height: 1.5; }
-.job-date { text-align: right; font-size: 12px; color: var(--text-2); }
+.job-main { flex: 1; min-width: 0; }
+.job-top { display: flex; align-items: center; gap: 12px; }
+.job-top .job-name { flex: 1; min-width: 0; }
+.job-top .job-actions { flex-shrink: 0; }
+.job-top .pill { margin-top: 0; }
+.job-meta-line { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; font-size: 12px; color: var(--text-2); margin-top: 4px; }
+.job-meta-line .pct { font-weight: 700; font-size: 14px; color: var(--text); }
+.job-meta-line .job-date { margin-left: auto; }
 .job-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .icon-btn {
   width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
@@ -333,7 +329,7 @@ body.detail { padding: 24px 28px; }
 .detail .chunk-row .row { margin: 0 0 4px; }
 
 /* ---- Density + display toggles (Settings) ---- */
-[data-density="compact"] .job-card { padding: 10px 14px; grid-template-columns: 44px minmax(0, 1fr) 130px 96px 120px 90px auto; }
+[data-density="compact"] .job-card { padding: 10px 14px; }
 [data-density="compact"] .list-header { grid-template-columns: 44px minmax(0, 1fr) 130px 96px 120px 90px auto; }
 [data-density="compact"] .tile { width: 44px; height: 44px; }
 [data-density="compact"] .job-name { font-size: 13.5px; }
@@ -456,7 +452,6 @@ body.hide-path .job-path { display: none; }
 @media (max-width: 820px) {
   .sidebar { display: none; }
   .main { padding: 16px; }
-  .job-meta { min-width: 110px; }
 }
 
 /* ---- 0.6.6 features: queues, grabber, drop overlay, speed graph ---- */
@@ -588,8 +583,6 @@ body.hide-path .job-path { display: none; }
 /* ---- 0.7.0 multi-select: checkbox column + bulk bar ---- */
 .list-header { grid-template-columns: 28px 52px minmax(0, 1fr) 150px 110px 140px 100px auto; }
 .job-card { grid-template-columns: 28px 52px minmax(0, 1fr) 150px 110px 140px 100px auto; }
-[data-density="compact"] .job-card { grid-template-columns: 28px 44px minmax(0, 1fr) 130px 96px 120px 90px auto; }
-[data-density="compact"] .list-header { grid-template-columns: 28px 44px minmax(0, 1fr) 130px 96px 120px 90px auto; }
 .job-select { display: grid; place-items: center; }
 .job-select input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 .bulk-bar {
@@ -744,3 +737,87 @@ textarea#mirrors, textarea#set-smart-watchlist {
 .stage-chip.failed { color: var(--red); border-color: var(--red); }
 .stage-chip.paused { color: var(--yellow); border-color: var(--yellow); }
 .stage-sep { color: var(--muted); font-size: 11px; }
+
+/* ---- 0.7.4 OmniGet-style overhaul ("omni" theme) ----
+ * Light, airy, orange-accent look rebuilt with SDM branding only.
+ * Like Ocean/Ember, the theme pins its own accent (orange) so the
+ * look matches the reference; other themes still honour the user's
+ * accent choice. */
+[data-theme="omni"] {
+  --bg: #f6f6f4;
+  --panel: #ffffff;
+  --panel-2: #f0efec;
+  --sidebar: #fbfbfa;
+  --text: #1c1c1a;
+  --text-2: #5c5c58;
+  --muted: #9a9a94;
+  --border: #e7e6e1;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --accent: #f97316; --accent-dark: #ea580c; --accent-glow: rgba(249, 115, 22, 0.18);
+  --accent-soft: #fff1e6; --accent-soft-border: #fed7aa; --accent-text: #9a3412;
+  --accent-soft-dark: #431407; --accent-text-dark: #fdba74;
+  --radius: 16px;
+}
+[data-theme="omni"] .nav-item.active { background: var(--accent-soft); color: var(--accent-text); outline-color: var(--accent-soft-border); }
+[data-theme="omni"] .job-card { border: 1px solid var(--border); }
+[data-theme="omni"] .pill.downloading { background: var(--accent-soft); color: var(--accent-text); }
+
+/* Views: Home is the default; Downloads holds the old main content.
+ * There is no generic .hidden rule in this stylesheet, so the views
+ * and the Home preview need their own. */
+#view-home.hidden, #view-downloads.hidden, #home-preview.hidden { display: none; }
+.home-view { max-width: 720px; margin: 0 auto; padding: 48px 16px 24px; }
+.home-pill {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+  padding: 8px 8px 8px 20px; box-shadow: var(--shadow);
+}
+.home-pill:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.home-pill-plus { color: var(--muted); font-size: 16px; }
+#home-url { flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--text); font-size: 15px; }
+.home-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+.home-preview {
+  display: flex; gap: 14px; align-items: center;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow); padding: 16px; margin-top: 24px;
+}
+.home-preview img { width: 120px; height: 68px; object-fit: cover; border-radius: 10px; flex-shrink: 0; background: var(--panel-2); }
+.home-preview img:not([src]) { display: none; }
+.home-preview-text { flex: 1; min-width: 0; }
+.home-preview-title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-preview-meta { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+.home-status { text-align: center; }
+
+/* Downloads-view filter chips (status) + category/speed controls. */
+.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.chip {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text-2);
+  border-radius: 999px; padding: 7px 16px; font-size: 13px; font-weight: 600;
+}
+.chip:hover { background: var(--panel-2); color: var(--text); }
+.chip.active { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-soft-border); }
+.chip-select-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.chip-select-label:first-of-type { margin-left: auto; }
+
+/* Collapsed sidebar: icons only. The collapse button's own label is
+   swapped by JS (short arrow), so it stays readable. */
+body.sidebar-collapsed .sidebar { width: 76px; }
+body.sidebar-collapsed .brand-text { display: none; }
+body.sidebar-collapsed .nav-item { font-size: 0; justify-content: center; }
+body.sidebar-collapsed .nav-item .nav-icon { font-size: 14px; }
+body.sidebar-collapsed .nav-item .count { display: none; }
+body.sidebar-collapsed .queues-head, body.sidebar-collapsed .queue-add,
+body.sidebar-collapsed .disk-card, body.sidebar-collapsed .foot-note { display: none; }
+body.sidebar-collapsed #bottom-bar { left: 76px; }
+
+/* Omni bottom mini-bar: floating light pill instead of a full strip. */
+[data-theme="omni"] #bottom-bar {
+  left: 232px; right: 20px; bottom: 16px;
+  border: 1px solid var(--border); border-radius: 999px; box-shadow: var(--shadow);
+}
+[data-theme="omni"] body.sidebar-collapsed #bottom-bar { left: 96px; }
+
+/* Smart Speed Limit watchlist must never escape the modal (0.7.4 fix
+   for the 0.7.3 screenshot overflow: the row is now a column layout
+   and the textarea is clamped to the row width). */
+textarea#set-smart-watchlist { max-width: 100%; min-width: 0; }

@@ -1,4 +1,13 @@
-# Shahjahan Download Manager (IDM-style) — Phase 0–7, UI 0.6.4
+# Shahjahan Download Manager
+
+## 0.7.4 — OmniGet-style UI overhaul
+
+- Complete UI/UX overhaul in the style of the OmniGet hero video, rebuilt with SDM branding only (no OmniGet name, no mascot): a light, airy "omni" theme (very light gray background, white panels, soft rounded corners, orange accent) is now the default look for existing installs via a one-time migration (a separate localStorage marker, so Reset-to-defaults never re-triggers it); every old theme is still available in Settings and the wizard.
+- Home view (default): centered "Paste a link or search" pill with a Paste button, quick actions (New Task, YouTube, Grab), and a best-effort preview card (YouTube titles via the existing yt-dlp info path, otherwise filename/hostname from the URL). Download goes through the exact New Task path, then switches to the Downloads view.
+- Downloads view: filter chips (All, Active, Queued, Completed, Paused, Failed) plus a category dropdown and a speed-limit control mirroring the Settings default limit; the sidebar holds Home/Downloads/Settings/About, the Queues section, the Disk Space card, and a Collapse sidebar control. Job rows are now cards (tile, title row, meta line, progress, stage chips) with the details dialog (Engine + Command rows) unchanged.
+- Bottom mini-bar restyled as a floating light pill ("N downloading · % · downloaded/total · speed") with a View downloads action; still 1 Hz change-only updates and no DOM work while the window is hidden.
+- Bug fix: the Smart Speed Limit "Watch these programs" textarea no longer overflows the settings modal (column layout + max-width clamp).
+- No features removed: every 0.7.3 feature keeps working with the same element IDs and IPC channels. (IDM-style) — Phase 0–7, UI 0.6.4
 
 ## What works now (0.6.4: bug fixes + YouTube downloader)
 

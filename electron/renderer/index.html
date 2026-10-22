@@ -14,17 +14,11 @@
       <div class="brand-text">SHAHJAHAN<br />DOWNLOAD MANAGER</div>
     </div>
 
-    <nav class="nav" id="filter-nav">
-      <button class="nav-item active" data-kind="status" data-value="all"><span class="nav-icon">▦</span> All Downloads <span class="count" id="count-all">0</span></button>
-      <button class="nav-item" data-kind="status" data-value="downloading"><span class="nav-icon">↓</span> Downloading <span class="count" id="count-downloading">0</span></button>
-      <button class="nav-item" data-kind="category" data-value="Compressed"><span class="nav-icon">▭</span> Compressed</button>
-      <button class="nav-item" data-kind="category" data-value="Documents"><span class="nav-icon">▤</span> Document</button>
-      <button class="nav-item" data-kind="category" data-value="Audio"><span class="nav-icon">♪</span> Music</button>
-      <button class="nav-item" data-kind="category" data-value="Programs"><span class="nav-icon">▣</span> Program</button>
-      <button class="nav-item" data-kind="category" data-value="Video"><span class="nav-icon">▶</span> Video</button>
-      <button class="nav-item" data-kind="status" data-value="completed"><span class="nav-icon">✓</span> Completed <span class="count" id="count-completed">0</span></button>
-      <button class="nav-item" data-kind="status" data-value="paused"><span class="nav-icon">⏸</span> Paused <span class="count" id="count-paused">0</span></button>
-      <button class="nav-item" data-kind="status" data-value="failed"><span class="nav-icon">✕</span> Failed <span class="count" id="count-failed">0</span></button>
+    <nav class="nav" id="view-nav">
+      <button class="nav-item active" id="nav-home"><span class="nav-icon">⌂</span> Home</button>
+      <button class="nav-item" id="nav-downloads"><span class="nav-icon">↓</span> Downloads <span class="count" id="count-all">0</span></button>
+      <button class="nav-item" id="settings-btn"><span class="nav-icon">⚙</span> Settings</button>
+      <button class="nav-item" id="nav-about"><span class="nav-icon">ℹ</span> About</button>
     </nav>
 
     <div class="queues-head"><h4>Queues</h4></div>
@@ -40,7 +34,7 @@
         <div class="disk-bar"><div id="disk-bar-fill" style="width:0%"></div></div>
         <div class="disk-text" id="disk-text">Checking disk space…</div>
       </div>
-      <button id="settings-btn" class="gear-btn" title="Open settings">⚙ Settings</button>
+      <button id="sidebar-collapse" class="gear-btn" title="Collapse sidebar">◀ Collapse sidebar</button>
       <p class="foot-note" id="foot-note">Max concurrent: 3<br />Segments download in parallel and resume from where they stopped.</p>
     </div>
   </aside>
@@ -58,6 +52,54 @@
         <button id="view-toggle" class="view-btn" title="Toggle list / grid view">▦</button>
       </div>
     </header>
+
+    <section id="view-home" class="home-view">
+      <div class="home-hero">
+        <div class="home-pill">
+          <span class="home-pill-plus">＋</span>
+          <input id="home-url" type="url" placeholder="Paste a link or search" autocomplete="off" spellcheck="false" />
+          <button id="home-paste" class="secondary-btn small-btn" type="button">Paste</button>
+        </div>
+        <div class="home-actions">
+          <button id="home-new-task" class="download-btn" type="button">＋ New Task</button>
+          <button id="home-yt" class="yt-btn" type="button">▶ YouTube</button>
+          <button id="home-grab" class="tool-btn" type="button">🌐 Grab</button>
+        </div>
+        <div id="home-preview" class="home-preview hidden">
+          <img id="home-thumb" alt="" />
+          <div class="home-preview-text">
+            <div id="home-title" class="home-preview-title"></div>
+            <div id="home-meta" class="home-preview-meta"></div>
+          </div>
+          <button id="home-download" class="download-btn" type="button">⬇ Download</button>
+        </div>
+        <p class="save-note home-status" id="home-status"></p>
+      </div>
+    </section>
+
+    <section id="view-downloads" class="hidden">
+    <div class="filter-chips" id="filter-chips">
+      <button class="chip active" data-filter-chip="all">All</button>
+      <button class="chip" data-filter-chip="downloading">Active</button>
+      <button class="chip" data-filter-chip="queued">Queued</button>
+      <button class="chip" data-filter-chip="completed">Completed</button>
+      <button class="chip" data-filter-chip="paused">Paused</button>
+      <button class="chip" data-filter-chip="failed">Failed</button>
+      <label class="chip-select-label">Category
+        <select id="category-filter" class="setting-select">
+          <option value="all">All categories</option>
+          <option value="Video">Video</option>
+          <option value="Audio">Music</option>
+          <option value="Documents">Document</option>
+          <option value="Compressed">Compressed</option>
+          <option value="Programs">Program</option>
+          <option value="General">Other</option>
+        </select>
+      </label>
+      <label class="chip-select-label">Speed limit (bytes/s)
+        <input id="view-limit" class="setting-input" type="number" min="0" placeholder="0 = unlimited" />
+      </label>
+    </div>
 
     <section class="add-card" id="add-card">
       <div class="add-head">
@@ -343,10 +385,11 @@
       <p id="empty-text">Press <strong>＋ New Task</strong> above, paste a URL, and press Download.<br />Paused downloads resume — nothing is lost if you close the app.</p>
       <button id="empty-add" class="download-btn">＋ Add download</button>
     </div>
+    </section>
   </main>
 <footer id="bottom-bar">
   <span id="bottom-status">No active downloads</span>
-  <span class="bottom-right"><span id="bottom-percent"></span><span id="bottom-speed">0 B/s</span></span>
+  <span class="bottom-right"><span id="bottom-percent"></span><span id="bottom-speed">0 B/s</span><button id="bottom-view-downloads" class="secondary-btn small-btn" type="button">View downloads</button></span>
 </footer>
 </div>
 
@@ -362,6 +405,7 @@
       <div class="setting-row">
         <div><div class="setting-label">Theme</div><div class="setting-hint">Applies live, so you see it right away.</div></div>
         <select id="wiz-theme" class="setting-select">
+          <option value="omni">Omni</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
           <option value="glass">Glass</option>
@@ -455,6 +499,7 @@
     <div class="setting-row">
       <div><div class="setting-label">Theme</div><div class="setting-hint">System follows your Windows light / dark setting.</div></div>
       <div class="segmented" id="theme-segmented">
+        <button data-theme-value="omni">Omni</button>
         <button data-theme-value="light">Light</button>
         <button data-theme-value="dark">Dark</button>
         <button data-theme-value="glass">Glass</button>
@@ -627,7 +672,7 @@
       <div><div class="setting-label">Smart cap (bytes/s)</div></div>
       <input id="set-smart-limit" class="setting-input" type="number" min="0" placeholder="e.g. 500000" />
     </div>
-    <div class="setting-row">
+    <div class="setting-row folder-row">
       <div><div class="setting-label">Watch these programs (one per line)</div><div class="setting-hint">Process names, e.g. eldenring.exe, obs64.exe. Checked every 30 seconds on Windows.</div></div>
       <textarea id="set-smart-watchlist" rows="3" class="setting-input" spellcheck="false"></textarea>
     </div>
@@ -696,7 +741,7 @@
       <li><kbd>Esc</kbd> — Close menus and dialogs</li>
     </ul>
 
-    <h3 class="settings-section">About</h3>
+    <h3 class="settings-section" id="about-section">About</h3>
     <p class="about-line"><strong>Shahjahan Download Manager</strong> · <span id="about-version">…</span><br />
     Segmented, resumable downloads with browser interception, HLS / DASH streams and a local bridge for the extension. Nothing is uploaded anywhere; downloads run on your PC.</p>
 

@@ -213,3 +213,54 @@ describe("stepped first-run wizard (0.7.2)", () => {
     }
   });
 });
+
+describe("OmniGet-style overhaul (0.7.4)", () => {
+  const css074 = readFileSync(
+    new URL("../electron/renderer/style.css", import.meta.url),
+    "utf8",
+  );
+  const rendererJs = readFileSync(
+    new URL("../electron/renderer/renderer.js", import.meta.url),
+    "utf8",
+  );
+
+  it("offers the omni theme in settings and in the wizard", () => {
+    expect(html).toContain('data-theme-value="omni"');
+    expect(html).toContain('<option value="omni">');
+    expect(css074).toContain('[data-theme="omni"]');
+    expect(css074).toContain("--accent: #f97316");
+  });
+
+  it("has Home and Downloads views with a switch mechanism", () => {
+    for (const id of ["view-home", "view-downloads", "nav-home", "nav-downloads"]) {
+      expectIdOnce(id);
+    }
+    expect(rendererJs).toContain("function showHomeView()");
+    expect(rendererJs).toContain("function showDownloadsView()");
+  });
+
+  it("has a Home paste pill, preview card and Download button", () => {
+    for (const id of ["home-url", "home-paste", "home-preview", "home-download"]) {
+      expectIdOnce(id);
+    }
+    expect(html).toContain('placeholder="Paste a link or search"');
+  });
+
+  it("has filter chips and a Downloads-view speed control", () => {
+    for (const chip of ["all", "downloading", "queued", "completed", "paused", "failed"]) {
+      expect(html).toContain(`data-filter-chip="${chip}"`);
+    }
+    expectIdOnce("category-filter");
+    expectIdOnce("view-limit");
+  });
+
+  it("has a bottom mini-bar View downloads action", () => {
+    expectIdOnce("bottom-view-downloads");
+  });
+
+  it("constrains the smart watchlist textarea inside the modal", () => {
+    expect(html).toContain('id="set-smart-watchlist"');
+    expect(css074).toContain("textarea#set-smart-watchlist");
+    expect(css074).toContain("max-width: 100%");
+  });
+});

@@ -9,7 +9,7 @@
 ; except en-US.pak. The Linux makensis SIGBUS-crashes once the total
 ; payload passes ~512 MiB (517 MiB untrimmed, 468 MiB trimmed, and the
 ; trimmed build succeeds). Re-trim after every dist:win:dir rebuild.
-; Output: dist-installer/Shahjahan Download Manager-Setup-0.7.3.exe
+; Output: dist-installer/Shahjahan Download Manager-Setup-0.7.4.exe
 ; This installer is unsigned. On first run Windows SmartScreen may warn;
 ; click "More info" -> "Run anyway".
 ; NOTE: installs to a new folder (Shahjahan Download Manager). If the
@@ -21,7 +21,7 @@ Name "Shahjahan Download Manager"
 !ifndef ROOT
   !define ROOT "."
 !endif
-OutFile "${ROOT}/dist-installer/Shahjahan Download Manager-Setup-0.7.3.exe"
+OutFile "${ROOT}/dist-installer/Shahjahan Download Manager-Setup-0.7.4.exe"
 InstallDir "$PROGRAMFILES64\Shahjahan Download Manager"
 InstallDirRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "InstallLocation"
 RequestExecutionLevel admin
@@ -34,6 +34,8 @@ RequestExecutionLevel admin
 ; swapon is not permitted in this container). The known-good config
 ; below built 0.7.0/0.7.1 fine — retry it only when free RAM is back
 ; above ~1 GB. Until then, ship the portable zip of win-unpacked.
+; Confirmed Oct 22, 2026: with ~2.3 GB free, this config built
+; 0.7.3 first try — the RAM diagnosis was correct.
 SetCompressor /SOLID lzma
 SetDatablockOptimize on
 Icon "${ROOT}/electron/build/icon.ico"
@@ -52,10 +54,10 @@ Icon "${ROOT}/electron/build/icon.ico"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
-VIProductVersion "0.7.3.0"
+VIProductVersion "0.7.4.0"
 VIAddVersionKey "ProductName" "Shahjahan Download Manager"
-VIAddVersionKey "FileVersion" "0.7.3.0"
-VIAddVersionKey "ProductVersion" "0.7.3"
+VIAddVersionKey "FileVersion" "0.7.4.0"
+VIAddVersionKey "ProductVersion" "0.7.4"
 VIAddVersionKey "CompanyName" "Shahjahan Download Manager"
 VIAddVersionKey "FileDescription" "Shahjahan Download Manager installer"
 VIAddVersionKey "LegalCopyright" "Copyright © 2026 Shahjahan Download Manager"
@@ -70,7 +72,7 @@ Section "Shahjahan Download Manager" SecMain
   CreateShortcut "$SMPROGRAMS\Shahjahan Download Manager\Uninstall Shahjahan Download Manager.lnk" "$INSTDIR\Uninstall.exe"
   CreateShortcut "$DESKTOP\Shahjahan Download Manager.lnk" "$INSTDIR\Shahjahan Download Manager.exe" "" "$INSTDIR\Shahjahan Download Manager.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "DisplayName" "Shahjahan Download Manager"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "DisplayVersion" "0.7.3"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "DisplayVersion" "0.7.4"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "Publisher" "Shahjahan Download Manager"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "UninstallString" "$INSTDIR\Uninstall.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Shahjahan Download Manager" "InstallLocation" "$INSTDIR"
