@@ -6,7 +6,7 @@
  * destroys the torrent and deletes only that torrent's files.
  */
 
-import { basename, join } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import type { DownloadProgress } from "../engine/types.js";
 
 /**
@@ -35,7 +35,10 @@ export interface TorrentLike {
   pause(): void;
   resume(): void;
   destroy(cb?: () => void): Promise<void> | void;
-  on(event: "download" | "done" | "error", listener: (...args: unknown[]) => void): void;
+  on(
+    event: "download" | "done" | "error" | "ready" | "metadata",
+    listener: (...args: unknown[]) => void,
+  ): void;
 }
 
 export interface WebTorrentClientLike {
@@ -55,6 +58,19 @@ export async function createWebTorrentClient(): Promise<WebTorrentClientLike> {
     opts?: Record<string, unknown>,
   ) => WebTorrentClientLike;
   return new Ctor();
+}
+
+/**
+ * True when `target` resolves inside `root` (or is `root` itself).
+ * A plain string-prefix check is NOT enough here: "/a/b-evil/x"
+ * starts with "/a/b" but is a different folder, so a crafted torrent
+ * file entry like "../b-evil/x" would pass a prefix guard while
+ * escaping the torrent's folder.
+ */
+export function isPathWithinDir(root: string, target: string): boolean {
+  const base = resolve(root);
+  const full = resolve(target);
+  return full === base || full.startsWith(base + sep);
 }
 
 /** Torrent display name from a magnet link's dn parameter, if any. */
@@ -108,19 +124,27 @@ export class TorrentSession {
     this.onProgress = opts.onProgress;
   }
 
-  /** Files this torrent owns (for cancel cleanup), within outDir. */
+  /**
+   * Files this torrent owns (for cancel cleanup), within outDir.
+   * Entries whose path escapes outDir (a crafted torrent can list
+   * "../" entries — WebTorrent joins them verbatim) are dropped,
+   * so cleanup can never delete files outside the torrent's folder.
+   */
   filePaths(): string[] {
     if (!this.torrent) return [];
-    return this.torrent.files.map((file) => join(this.outDir, file.path));
+    return this.torrent.files
+      .map((file) => join(this.outDir, file.path))
+      .filter((file) => isPathWithinDir(this.outDir, file));
   }
 
   /** Final destination: single file, or the torrent folder. */
   destination(): string {
     if (!this.torrent) return this.outDir;
-    if (this.torrent.files.length === 1) {
-      return join(this.outDir, this.torrent.files[0]!.path);
-    }
-    return join(this.outDir, this.torrent.name);
+    const dest =
+      this.torrent.files.length === 1
+        ? join(this.outDir, this.torrent.files[0]!.path)
+        : join(this.outDir, this.torrent.name);
+    return isPathWithinDir(this.outDir, dest) ? dest : this.outDir;
   }
 
   progress(): DownloadProgress {
@@ -188,6 +212,30 @@ export class TorrentSession {
           error: error instanceof Error ? error.message : String(error),
         });
       });
+      // A crafted torrent can list file paths that escape the download
+      // folder (WebTorrent joins them verbatim, so its writes would
+      // land outside the folder). Reject such torrents as soon as
+      // their metadata is known — "ready" fires for .torrent files and
+      // magnets alike, "metadata" covers magnets — and once more right
+      // now in case metadata was already present when we attached.
+      const validatePaths = () => {
+        const current = this.torrent;
+        if (!current) return;
+        const escapes =
+          current.files.some(
+            (file) => !isPathWithinDir(this.outDir, join(this.outDir, file.path)),
+          ) || !isPathWithinDir(this.outDir, join(this.outDir, current.name));
+        if (escapes) {
+          void this.destroy().catch(() => undefined);
+          this.finish({
+            status: "failed",
+            error: "Torrent contains file paths outside its download folder and was stopped.",
+          });
+        }
+      };
+      torrent.on("ready", validatePaths);
+      torrent.on("metadata", validatePaths);
+      validatePaths();
     } catch (error) {
       this.finish({
         status: "failed",

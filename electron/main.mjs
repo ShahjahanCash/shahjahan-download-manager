@@ -4,7 +4,7 @@ import { dirname, join, basename } from "node:path";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { get as httpsGet } from "node:https";
 import { exec, execFile, spawn } from "node:child_process";
-import { AppDownloadManager } from "../dist/app/manager.js";
+import { AppDownloadManager, parseImportUrls, isYoutubeImportUrl, jobsToCsv } from "../dist/app/manager.js";
 import { BridgeServer } from "../dist/bridge/server.js";
 import { writeBridgeInfo, deleteBridgeInfo } from "../dist/bridge/bridgeInfo.js";
 import { checkForUpdates } from "../dist/app/updater.js";
@@ -705,6 +705,65 @@ ipcMain.handle("dm:open-details", async (_event, id) => {
   openDetails(id);
   return true;
 });
+ipcMain.handle("dm:import-urls", async () => {
+  // 0.8.0: read a .txt file (one URL per line) and add every kept link.
+  // YouTube links go through yt-dlp as Video/best — a plain HTTP fetch
+  // of a watch page would just save the page as a file. A failed add
+  // counts as failed, never crashes the handler.
+  if (!mainWindow || mainWindow.isDestroyed()) return { added: 0, skipped: 0, failed: 0 };
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: "Import URLs from text file",
+    properties: ["openFile"],
+    filters: [
+      { name: "Text files", extensions: ["txt"] },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  if (picked.canceled || !picked.filePaths[0]) return { added: 0, skipped: 0, failed: 0 };
+  let text;
+  try {
+    text = readFileSync(picked.filePaths[0], "utf8");
+  } catch {
+    return { added: 0, skipped: 0, failed: 1 };
+  }
+  const { urls, skipped } = parseImportUrls(text);
+  let added = 0;
+  let failed = 0;
+  for (const url of urls) {
+    try {
+      if (isYoutubeImportUrl(url)) {
+        await manager.addYoutube(url, { options: { kind: "video", quality: "best" } });
+      } else {
+        await manager.add(url);
+      }
+      added++;
+    } catch {
+      failed++;
+    }
+  }
+  return { added, skipped, failed };
+});
+ipcMain.handle("dm:export-csv", async () => {
+  // 0.8.0: write the current job list + a stats summary as CSV.
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const picked = await dialog.showSaveDialog(mainWindow, {
+    title: "Export downloads to CSV",
+    defaultPath: "shahjahan-downloads.csv",
+    filters: [{ name: "CSV files", extensions: ["csv"] }],
+  });
+  if (picked.canceled || !picked.filePath) return false;
+  try {
+    writeFileSync(picked.filePath, jobsToCsv(manager.list()), "utf8");
+    return true;
+  } catch {
+    return false;
+  }
+});
+// 0.8.0: delete a completed job AND its file (list-only delete stays
+// on dm:cancel). Queue start/stop = pause/resume that queue's jobs.
+ipcMain.handle("dm:delete-with-file", async (_event, id) => manager.deleteWithFile(id));
+ipcMain.handle("dm:pause-queue", async (_event, queueId) => manager.pauseQueue(queueId));
+ipcMain.handle("dm:resume-queue", async (_event, queueId) => manager.resumeQueue(queueId));
 
 async function checkUpdatesOnce() {
   // User-confirmed only: never downloads or installs automatically.
@@ -716,7 +775,7 @@ async function checkUpdatesOnce() {
         type: "info",
         title: "Update available",
         message: `Shahjahan Download Manager ${result.latestVersion} is available (you have ${result.currentVersion}).`,
-        detail: "Click Download to open the installer in your browser.",
+        detail: `Click Download to open the installer in your browser.\n${result.url}`,
         buttons: ["Download", "Later"],
         defaultId: 0,
       });
@@ -765,13 +824,21 @@ async function handleLaunchArgs(argv) {
   }
 }
 
+// Queue restore runs after the window opens (0.7.7 startup): it used to
+// block first paint on disk I/O. This promise lets the quit path wait
+// for it, so a fast quit can never flush a half-restored queue.
+let queueRestored = null;
+
 app.whenReady().then(async () => {
   // Apply persisted engine settings before the window opens, so the
   // first download already uses the user's folder and concurrency.
   applyEngineSettings(loadSettings());
-  // Restore the saved queue (feature 1) before the window lists jobs.
-  await manager.restoreQueue().catch(() => undefined);
+  // Window first: queue restore is disk I/O and used to block first
+  // paint. Restored jobs come back paused, so nothing downloads while
+  // restore runs, and restore notifies listeners (onJobsChanged) when
+  // it finishes, so the list fills in on its own.
   createMainWindow();
+  queueRestored = manager.restoreQueue().catch(() => undefined);
   createTray();
   startClipboardMonitor();
   await startBridge();
@@ -824,6 +891,9 @@ app.on("before-quit", (event) => {
   if (quittingAfterFlush) return;
   event.preventDefault();
   (async () => {
+    // Never flush a half-restored queue: if restore is still running,
+    // wait for it first (it is read-only and fast).
+    if (queueRestored) await queueRestored.catch(() => undefined);
     try {
       await manager.saveQueue();
     } catch {

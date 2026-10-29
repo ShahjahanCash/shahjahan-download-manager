@@ -10,11 +10,15 @@ export interface YoutubeInfo {
   playlistCount: number | null;
   /** Available video heights, descending (e.g. [1080, 720]). */
   heights: number[];
+  /** Highest frame rate among video formats, or null when unknown
+   * (e.g. playlist info fetch, which carries no formats). */
+  maxFps: number | null;
   hasAudio: boolean;
 }
 
 interface RawFormat {
   height?: number | null;
+  fps?: number | null;
   vcodec?: string | null;
   acodec?: string | null;
 }
@@ -70,8 +74,14 @@ export async function fetchYoutubeInfo(ytDlp: string, url: string): Promise<Yout
   const isPlaylist = raw._type === "playlist";
   const heights = new Set<number>();
   let hasAudio = false;
+  let maxFps: number | null = null;
   for (const format of raw.formats ?? []) {
-    if (format.height && format.vcodec && format.vcodec !== "none") heights.add(format.height);
+    if (format.height && format.vcodec && format.vcodec !== "none") {
+      heights.add(format.height);
+      if (typeof format.fps === "number" && format.fps > 0) {
+        maxFps = maxFps === null ? format.fps : Math.max(maxFps, format.fps);
+      }
+    }
     if (format.acodec && format.acodec !== "none") hasAudio = true;
   }
   return {
@@ -85,6 +95,7 @@ export async function fetchYoutubeInfo(ytDlp: string, url: string): Promise<Yout
       ? (typeof raw.playlist_count === "number" ? raw.playlist_count : (raw.entries?.length ?? null))
       : null,
     heights: [...heights].sort((a, b) => b - a),
+    maxFps,
     hasAudio,
   };
 }

@@ -30,6 +30,12 @@ contextBridge.exposeInMainWorld("dm", {
   toggleWidget: () => ipcRenderer.invoke("dm:toggle-widget"),
   stopSeeding: (id) => ipcRenderer.invoke("dm:stop-seeding", id),
   stats: () => ipcRenderer.invoke("dm:stats"),
+  // 0.8.0 additions (narrow, same pattern as the existing keys).
+  importUrls: () => ipcRenderer.invoke("dm:import-urls"),
+  exportCsv: () => ipcRenderer.invoke("dm:export-csv"),
+  deleteWithFile: (id) => ipcRenderer.invoke("dm:delete-with-file", id),
+  pauseQueue: (queueId) => ipcRenderer.invoke("dm:pause-queue", queueId),
+  resumeQueue: (queueId) => ipcRenderer.invoke("dm:resume-queue", queueId),
   ytTools: () => ipcRenderer.invoke("dm:yt-tools"),
   ytInfo: (url) => ipcRenderer.invoke("dm:yt-info", url),
   ytAdd: (url, opts) => ipcRenderer.invoke("dm:yt-add", url, opts),

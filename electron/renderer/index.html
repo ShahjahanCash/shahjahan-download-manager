@@ -15,7 +15,8 @@
     </div>
 
     <nav class="nav" id="view-nav">
-      <button class="nav-item active" id="nav-home"><span class="nav-icon">⌂</span> Home</button>
+      <button class="nav-item active" id="nav-dashboard"><span class="nav-icon">▦</span> Dashboard</button>
+      <button class="nav-item" id="nav-home"><span class="nav-icon">⌂</span> Home</button>
       <button class="nav-item" id="nav-downloads"><span class="nav-icon">↓</span> Downloads <span class="count" id="count-all">0</span></button>
       <button class="nav-item" id="settings-btn"><span class="nav-icon">⚙</span> Settings</button>
       <button class="nav-item" id="nav-about"><span class="nav-icon">ℹ</span> About</button>
@@ -25,14 +26,25 @@
     <nav class="nav" id="queue-nav"></nav>
     <div class="queue-add">
       <input id="queue-name" type="text" placeholder="New queue name" maxlength="40" />
-      <button id="queue-create" class="secondary-btn small-btn" title="Create queue">＋</button>
+      <button id="queue-create" class="secondary-btn small-btn" title="Create queue" aria-label="Create queue">＋</button>
     </div>
+
+    <div class="queues-head"><h4>Categories</h4></div>
+    <nav class="nav" id="cat-nav" aria-label="Filter by category">
+      <button class="nav-item active" data-cat-filter="all"><span class="nav-icon">▦</span> All categories</button>
+      <button class="nav-item" data-cat-filter="Video"><span class="nav-icon">▶</span> Video</button>
+      <button class="nav-item" data-cat-filter="Audio"><span class="nav-icon">♪</span> Music</button>
+      <button class="nav-item" data-cat-filter="Documents"><span class="nav-icon">▤</span> Document</button>
+      <button class="nav-item" data-cat-filter="Compressed"><span class="nav-icon">▭</span> Compressed</button>
+      <button class="nav-item" data-cat-filter="Programs"><span class="nav-icon">▣</span> Program</button>
+      <button class="nav-item" data-cat-filter="General"><span class="nav-icon">▦</span> Other</button>
+    </nav>
 
     <div class="sidebar-foot">
       <div class="disk-card" id="disk-card">
         <h4>Disk Space</h4>
         <div class="disk-bar"><div id="disk-bar-fill" style="width:0%"></div></div>
-        <div class="disk-text" id="disk-text">Checking disk space…</div>
+        <div class="disk-text" id="disk-text"><span id="disk-free">Checking disk space…</span><span id="disk-used"></span></div>
       </div>
       <button id="sidebar-collapse" class="gear-btn" title="Collapse sidebar">◀ Collapse sidebar</button>
       <p class="foot-note" id="foot-note">Max concurrent: 3<br />Segments download in parallel and resume from where they stopped.</p>
@@ -49,16 +61,76 @@
         <button id="yt-task" class="yt-btn" title="Download a YouTube video or playlist">▶ YouTube</button>
         <button id="grab-task" class="tool-btn" title="Download many links from one web page">🌐 Grab</button>
         <button id="new-task" class="new-task-btn">＋ New Task</button>
-        <button id="view-toggle" class="view-btn" title="Toggle list / grid view">▦</button>
+        <button id="view-toggle" class="view-btn" title="Toggle list / grid view" aria-label="Toggle list / grid view">▦</button>
       </div>
     </header>
 
-    <section id="view-home" class="home-view">
+    <section id="view-dashboard" class="dashboard-view">
+      <div class="dash-head">
+        <div>
+          <h1 class="dash-title">Overview</h1>
+          <p class="dash-subtitle">Everything downloading right now, at a glance — live from your download list, nothing simulated.</p>
+        </div>
+        <div class="dash-actions">
+          <button id="dash-new-task" class="download-btn" type="button">＋ New Task</button>
+          <button id="dash-yt" class="yt-btn" type="button">▶ YouTube</button>
+          <button id="dash-grab" class="tool-btn" type="button">🌐 Grab</button>
+          <button id="dash-import" class="tool-btn" type="button">📄 Import .txt</button>
+        </div>
+      </div>
+      <div class="dash-stats" role="status" aria-label="Download totals">
+        <div class="dash-stat"><span class="dash-stat-label">Total</span><span class="dash-stat-value mono" id="dash-total">—</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Active</span><span class="dash-stat-value mono" id="dash-active">—</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Completed</span><span class="dash-stat-value mono" id="dash-completed">—</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Failed</span><span class="dash-stat-value mono" id="dash-failed">—</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Speed now</span><span class="dash-stat-value mono" id="dash-speed">—</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Time left</span><span class="dash-stat-value mono" id="dash-eta">—</span></div>
+      </div>
+      <div class="dash-overall">
+        <div class="dash-overall-row">
+          <div class="dash-ring-wrap">
+            <svg class="dash-ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="dash-ring-track" cx="24" cy="24" r="20" /><circle class="dash-ring-fill" id="dash-ring-fill" cx="24" cy="24" r="20" transform="rotate(-90 24 24)" /></svg>
+            <span class="dash-ring-text mono" id="dash-ring-text">—</span>
+          </div>
+          <div class="dash-overall-main">
+            <div class="dash-overall-top"><span class="dash-overall-label">Overall progress</span><span class="dash-overall-text mono" id="dash-overall-text">—</span></div>
+            <div class="bar dash-overall-bar"><div id="dash-overall-fill"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-attention" id="dash-attention">
+        <span id="dash-attention-text">Loading downloads…</span>
+        <button id="dash-view-failed" class="secondary-btn small-btn hidden" type="button">Review failed</button>
+      </div>
+      <div class="dash-columns">
+        <div class="dash-panel">
+          <h2 class="dash-panel-title">Recent downloads</h2>
+          <div id="dash-recent" class="dash-recent"></div>
+        </div>
+        <div class="dash-panel">
+          <h2 class="dash-panel-title">Storage</h2>
+          <p class="dash-disk mono" id="dash-disk">Checking disk space…</p>
+          <p class="setting-hint">Files save to your Downloads folder, sorted by category. Change the folder in Settings → Downloads.</p>
+          <h2 class="dash-panel-title">Shortcuts</h2>
+          <p class="setting-hint"><span class="mono">Ctrl+N</span> New task · <span class="mono">Space</span> Pause / resume selected · <span class="mono">Del</span> Delete selected · <span class="mono">Esc</span> Close menus</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-home" class="home-view hidden">
       <div class="home-hero">
+        <h1 class="home-title">New download</h1>
+        <p class="home-subtitle">Paste a link below — the app sorts it by category and resumes where it stopped.</p>
+        <label class="field-label" for="home-url">Paste video link here</label>
         <div class="home-pill">
           <span class="home-pill-plus">＋</span>
           <input id="home-url" type="url" placeholder="Paste a link or search" autocomplete="off" spellcheck="false" />
           <button id="home-paste" class="secondary-btn small-btn" type="button">Paste</button>
+        </div>
+        <div class="home-chips" role="navigation" aria-label="Jump to">
+          <button id="home-chip-yt" class="home-chip" type="button">▶ YouTube</button>
+          <button id="home-chip-grab" class="home-chip" type="button">🌐 Site grabber</button>
+          <button id="home-chip-import" class="home-chip" type="button">📄 Import .txt</button>
         </div>
         <div class="home-actions">
           <button id="home-new-task" class="download-btn" type="button">＋ New Task</button>
@@ -80,11 +152,11 @@
     <section id="view-downloads" class="hidden">
     <div class="filter-chips" id="filter-chips">
       <button class="chip active" data-filter-chip="all">All</button>
-      <button class="chip" data-filter-chip="downloading">Active</button>
-      <button class="chip" data-filter-chip="queued">Queued</button>
-      <button class="chip" data-filter-chip="completed">Completed</button>
+      <button class="chip" data-filter-chip="downloading">Downloading</button>
       <button class="chip" data-filter-chip="paused">Paused</button>
-      <button class="chip" data-filter-chip="failed">Failed</button>
+      <button class="chip" data-filter-chip="completed">Completed</button>
+      <button class="chip" data-filter-chip="failed">Error</button>
+      <button class="chip" data-filter-chip="queued">Queued</button>
       <label class="chip-select-label">Category
         <select id="category-filter" class="setting-select">
           <option value="all">All categories</option>
@@ -96,18 +168,51 @@
           <option value="General">Other</option>
         </select>
       </label>
-      <label class="chip-select-label">Speed limit (bytes/s)
+      <label class="chip-select-label" title="Same as Settings → Default speed limit; applies to new downloads">Default speed limit (bytes/s)
         <input id="view-limit" class="setting-input" type="number" min="0" placeholder="0 = unlimited" />
       </label>
+      <label class="chip-select-label">Sort
+        <select id="sort-select" class="setting-select">
+          <option value="date-desc">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="name">Name A–Z</option>
+          <option value="size-desc">Largest first</option>
+          <option value="status">Status</option>
+        </select>
+      </label>
+      <div class="actions-menu-wrap">
+        <button id="actions-menu-btn" class="chip" type="button" title="More actions" aria-label="More actions">⋯</button>
+        <div id="actions-menu" class="actions-menu hidden">
+          <button id="resume-all" class="tool-btn" type="button" title="Resume all paused downloads">▶ Resume All</button>
+          <button id="pause-all" class="tool-btn" type="button" title="Pause all active downloads">⏸ Pause All</button>
+          <button id="clear-completed" class="tool-btn" type="button" title="Remove finished downloads from the list">🗑 Clear Completed</button>
+          <button id="retry-all-failed" class="tool-btn" type="button" title="Retry every failed download">↻ Retry All Failed</button>
+          <button id="import-txt" class="tool-btn" type="button" title="Import URLs from a .txt file, one per line">📄 Import .txt</button>
+          <button id="export-csv" class="tool-btn" type="button" title="Export the download list and stats summary to CSV">📊 Export CSV</button>
+          <button id="widget-btn" class="tool-btn" type="button" title="Small always-on-top speed window">◉ Speed Monitor</button>
+          <button id="options-btn" class="tool-btn" type="button" title="Open settings">⚙ Options</button>
+          <button id="graph-toggle" class="tool-btn" type="button">📈 Show speed graph</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="pro-actions" id="pro-actions" aria-label="Download actions">
+      <button id="pro-add-url" class="tool-btn" type="button" title="Add a new download">＋ Add URL</button>
+      <button id="pro-resume-all" class="tool-btn" type="button" title="Resume all paused downloads">▶ Resume All</button>
+      <button id="pro-pause-all" class="tool-btn" type="button" title="Pause all active downloads">⏸ Stop All</button>
+      <button id="pro-open-folder" class="tool-btn" type="button" title="Open the Downloads folder">📂 Open Folder</button>
     </div>
 
     <section class="add-card" id="add-card">
       <div class="add-head">
-        <h1>New Download Task</h1>
-        <button id="add-close" class="icon-btn" title="Close">✕</button>
+        <h2>New Download Task</h2>
+        <button id="add-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
       <label class="field-label">URL</label>
-      <input id="url" type="url" placeholder="https://example.com/file.zip or magnet:?xt=urn:btih:…" autocomplete="off" spellcheck="false" />
+      <div class="url-row">
+        <input id="url" type="url" placeholder="https://example.com/file.zip or magnet:?xt=urn:btih:…" autocomplete="off" spellcheck="false" />
+        <button id="url-paste" class="secondary-btn" type="button">Paste</button>
+      </div>
       <div class="add-row">
         <div class="field">
           <label class="field-label">Category</label>
@@ -135,7 +240,7 @@
             </select>
           </div>
           <div class="field">
-            <label class="field-label">Speed limit (bytes/s)</label>
+            <label class="field-label">Speed limit for this download (bytes/s)</label>
             <input id="limit" type="number" min="0" placeholder="0 = unlimited" />
           </div>
         </div>
@@ -161,6 +266,7 @@
         </div>
       </div>
       <p class="save-note">Save to: your Downloads folder, sorted by category. FTP links (ftp://, ftps://) download single-stream with resume. <span id="form-error" class="error"></span></p>
+      <p class="dest-line">Destination: <span id="add-dest" class="mono">your Downloads folder</span> <button id="add-dest-settings" class="link-btn" type="button">Change in Settings</button></p>
       <div class="add-buttons">
         <button id="add-later" class="secondary-btn" title="Clear the form">Cancel</button>
         <button id="add" class="download-btn">⬇ Download</button>
@@ -169,8 +275,8 @@
 
     <section class="add-card hidden" id="yt-card">
       <div class="add-head">
-        <h1>▶ YouTube Downloader</h1>
-        <button id="yt-close" class="icon-btn" title="Close">✕</button>
+        <h2>▶ YouTube Downloader</h2>
+        <button id="yt-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
       <label class="field-label">YouTube URL</label>
       <div class="yt-url-row">
@@ -195,19 +301,28 @@
         </div>
         <div class="field" id="yt-video-quality-field">
           <label class="field-label">Video quality (max)</label>
-          <select id="yt-quality">
-            <option value="best">Best available</option>
-            <option value="2160">2160p (4K)</option>
-            <option value="1440">1440p</option>
-            <option value="1080" selected>1080p</option>
-            <option value="720">720p</option>
-            <option value="480">480p</option>
-            <option value="360">360p</option>
-          </select>
+          <div class="pill-row" id="yt-quality-pills" role="radiogroup" aria-label="Video quality">
+            <button type="button" data-yt-quality="best" aria-pressed="false">Best</button>
+            <button type="button" data-yt-quality="2160" aria-pressed="false">2160p</button>
+            <button type="button" data-yt-quality="1440" aria-pressed="false">1440p</button>
+            <button type="button" data-yt-quality="1080" aria-pressed="true" class="active">1080p</button>
+            <button type="button" data-yt-quality="720" aria-pressed="false">720p</button>
+            <button type="button" data-yt-quality="480" aria-pressed="false">480p</button>
+            <button type="button" data-yt-quality="360" aria-pressed="false">360p</button>
+          </div>
+        </div>
+        <div class="field" id="yt-fps-field">
+          <label class="field-label">Frame rate</label>
+          <div class="pill-row" id="yt-fps-pills" role="radiogroup" aria-label="Frame rate">
+            <button type="button" data-yt-fps="best" aria-pressed="true" class="active">Best (any)</button>
+            <button type="button" data-yt-fps="60" aria-pressed="false">60 fps (preferred)</button>
+            <button type="button" data-yt-fps="30" aria-pressed="false">30 fps (max)</button>
+          </div>
         </div>
       </div>
       <button id="yt-advanced-toggle" class="advanced-toggle" type="button" aria-expanded="false" aria-controls="yt-advanced">Advanced options ▸</button>
       <div id="yt-advanced" class="advanced-section hidden">
+      <h4 class="yt-subhead">Format</h4>
       <div class="add-row">
         <div class="field" id="yt-container-field">
           <label class="field-label">Container</label>
@@ -237,6 +352,7 @@
           </select>
         </div>
       </div>
+      <h4 class="yt-subhead">Subtitles</h4>
       <div class="add-row">
         <div class="field">
           <label class="field-label">Subtitles</label>
@@ -258,6 +374,9 @@
             <label><input id="yt-embed-subs" type="checkbox" /> Embed in video (needs ffmpeg)</label>
           </div>
         </div>
+      </div>
+      <h4 class="yt-subhead">Playlist</h4>
+      <div class="add-row">
         <div class="field">
           <label class="field-label">Playlist</label>
           <div class="yt-checks">
@@ -269,6 +388,7 @@
           </div>
         </div>
       </div>
+      <h4 class="yt-subhead">Cookies &amp; extras</h4>
       <div class="yt-checks yt-extras">
         <label>Browser cookies (age-restricted / login videos)
           <select id="yt-cookies-browser">
@@ -309,8 +429,8 @@
 
     <section class="add-card hidden" id="grab-card">
       <div class="add-head">
-        <h1>🌐 Site Grabber</h1>
-        <button id="grab-close" class="icon-btn" title="Close">✕</button>
+        <h2>🌐 Site Grabber</h2>
+        <button id="grab-close" class="icon-btn" title="Close" aria-label="Close">✕</button>
       </div>
       <label class="field-label">Page URL</label>
       <div class="yt-url-row">
@@ -339,36 +459,19 @@
       </div>
     </section>
 
-    <div class="action-toolbar">
-      <button id="resume-all" class="tool-btn" title="Resume all paused downloads">▶ Resume All</button>
-      <button id="pause-all" class="tool-btn" title="Pause all active downloads">⏸ Pause All</button>
-      <button id="clear-completed" class="tool-btn" title="Remove finished downloads from the list">🗑 Clear Completed</button>
-      <button id="widget-btn" class="tool-btn" title="Small always-on-top speed window">◉ Speed Monitor</button>
-      <button id="options-btn" class="tool-btn" title="Open settings">⚙ Options</button>
-      <label class="sort-label">Sort
-        <select id="sort-select" class="setting-select">
-          <option value="date-desc">Newest first</option>
-          <option value="date-asc">Oldest first</option>
-          <option value="name">Name A–Z</option>
-          <option value="size-desc">Largest first</option>
-          <option value="status">Status</option>
-        </select>
-      </label>
-    </div>
-
     <section class="toolbar">
-      <div class="stats">
+      <div class="stats collapsed" id="download-stats">
         <div class="stat"><span class="stat-value mono" id="stat-speed">0 B/s</span><span class="stat-label">Total speed</span></div>
         <div class="stat"><canvas id="speed-graph" width="180" height="28"></canvas><span class="stat-label">Speed history</span></div>
         <div class="stat"><span class="stat-value mono" id="stat-active">0</span><span class="stat-label">Active</span></div>
         <div class="stat"><span class="stat-value mono" id="stat-done">0</span><span class="stat-label">Completed</span></div>
       </div>
-      <h2 id="list-title">All Downloads</h2>
+      <h1 id="list-title">All Downloads</h1>
       <span class="list-count mono" id="list-count"></span>
     </section>
 
     <div class="list-header" id="list-header">
-      <span><input type="checkbox" id="select-all" title="Select all shown" /></span><span></span><span>File</span><span>Size</span><span>Status</span><span>Time Left</span><span>Date</span><span></span>
+      <span><input type="checkbox" id="select-all" title="Select all shown" /></span><span></span><span>Filename</span><span>Size</span><span>Downloaded</span><span>Speed</span><span>Time Left</span><span>Status</span><span></span>
     </div>
     <div id="bulk-bar" class="bulk-bar hidden">
       <span id="bulk-count"></span>
@@ -383,7 +486,7 @@
       <div class="empty-icon">⬇</div>
       <h3 id="empty-title">No downloads yet</h3>
       <p id="empty-text">Press <strong>＋ New Task</strong> above, paste a URL, and press Download.<br />Paused downloads resume — nothing is lost if you close the app.</p>
-      <button id="empty-add" class="download-btn">＋ Add download</button>
+      <button id="empty-new-task" class="download-btn" type="button">＋ New Task</button>
     </div>
     </section>
   </main>
@@ -429,11 +532,6 @@
           <button data-wiz-accent-value="orange" style="--swatch:#f97316" title="Sunset Orange"></button>
           <button data-wiz-accent-value="teal" style="--swatch:#0d9488" title="Teal"></button>
         </div>
-      </div>
-      <div class="wiz-preview">
-        <div class="wiz-preview-row"><span class="wiz-preview-tile">▶</span><span class="wiz-preview-name">Example video.mp4</span><span class="wiz-preview-speed">12.4 MB/s</span></div>
-        <div class="bar wiz-preview-bar"><div style="width:62%"></div></div>
-        <button class="download-btn" type="button">Download</button>
       </div>
     </div>
     <div class="wiz-step hidden" id="wiz-step-2">
@@ -491,11 +589,23 @@
   <div class="modal settings-modal" role="dialog" aria-label="Settings">
     <div class="modal-head">
       <h2>⚙ Settings</h2>
-      <button id="settings-close" class="icon-btn" title="Close settings">✕</button>
+      <button id="settings-close" class="icon-btn" title="Close settings" aria-label="Close settings">✕</button>
     </div>
 
     <input id="settings-search" class="setting-input settings-search" type="search" placeholder="Search settings…" spellcheck="false" />
-    <h3 class="settings-section">Appearance <button class="section-reset" data-reset-section="appearance" title="Reset this section">Reset</button></h3>
+    <nav class="settings-nav" aria-label="Settings categories">
+      <button type="button" data-settings-target="appearance-section" class="settings-nav-btn active">Appearance</button>
+      <button type="button" data-settings-target="downloads-section" class="settings-nav-btn">Downloads</button>
+      <button type="button" data-settings-target="automation-section" class="settings-nav-btn">Connection</button>
+      <button type="button" data-settings-target="queues-section" class="settings-nav-btn">Queue</button>
+      <button type="button" data-settings-target="notifications-section" class="settings-nav-btn">Notifications</button>
+      <button type="button" data-settings-target="browser-section" class="settings-nav-btn">Browser integration</button>
+      <button type="button" data-settings-target="seeding-section" class="settings-nav-btn">Advanced</button>
+      <button type="button" data-settings-target="statistics-section" class="settings-nav-btn">Statistics</button>
+      <button type="button" data-settings-target="shortcuts-section" class="settings-nav-btn">Shortcuts</button>
+      <button type="button" data-settings-target="about-section" class="settings-nav-btn">About</button>
+    </nav>
+    <h3 class="settings-section" id="appearance-section">Appearance <button class="section-reset" data-reset-section="appearance" title="Reset this section">Reset</button></h3>
     <div class="setting-row">
       <div><div class="setting-label">Theme</div><div class="setting-hint">System follows your Windows light / dark setting.</div></div>
       <div class="segmented" id="theme-segmented">
@@ -550,13 +660,8 @@
         <option value="custom">Custom</option>
       </select>
     </div>
-    <div class="appearance-preview">
-      <div class="appearance-preview-row"><span class="wiz-preview-tile">▶</span><span class="appearance-preview-name">Example video.mp4</span><span class="appearance-preview-speed">12.4 MB/s</span></div>
-      <div class="bar"><div style="width:62%"></div></div>
-      <button class="download-btn" type="button">Download</button>
-    </div>
 
-    <h3 class="settings-section">Downloads <button class="section-reset" data-reset-section="downloads" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="downloads-section">Downloads <button class="section-reset" data-reset-section="downloads" title="Reset this section">Reset</button></h3>
     <div class="setting-row">
       <div><div class="setting-label">Default segments</div><div class="setting-hint">Parallel connections per new download.</div></div>
       <select id="set-segments" class="setting-select">
@@ -567,7 +672,7 @@
       </select>
     </div>
     <div class="setting-row">
-      <div><div class="setting-label">Default speed limit</div><div class="setting-hint">0 = unlimited, for new downloads.</div></div>
+      <div><div class="setting-label">Default speed limit</div><div class="setting-hint">0 = unlimited, for new downloads. The Downloads filter row edits the same value.</div></div>
       <input id="set-limit" class="setting-input" type="number" min="0" placeholder="0" />
     </div>
     <div class="setting-row">
@@ -589,7 +694,7 @@
       </div>
     </div>
 
-    <h3 class="settings-section">Automation <button class="section-reset" data-reset-section="automation" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="automation-section">Connection &amp; automation <button class="section-reset" data-reset-section="automation" title="Reset this section">Reset</button></h3>
     <div class="setting-row">
       <div><div class="setting-label">When all downloads finish</div><div class="setting-hint">Shutdown and sleep always ask first.</div></div>
       <select id="set-complete-action" class="setting-select">
@@ -616,15 +721,15 @@
       </div>
     </div>
 
-    <h3 class="settings-section">Queue speed limits <button class="section-reset" data-reset-section="queues" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="queues-section">Queue speed limits <button class="section-reset" data-reset-section="queues" title="Reset this section">Reset</button></h3>
     <p class="setting-hint">A queue cap limits every download in that queue (0 = no cap). A per-download limit below the cap still wins.</p>
     <div id="queue-limits"></div>
 
-    <h3 class="settings-section">Category folders <button class="section-reset" data-reset-section="categories" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="categories-section">Category folders <button class="section-reset" data-reset-section="categories" title="Reset this section">Reset</button></h3>
     <p class="setting-hint">Empty = the main downloads folder, sorted by category.</p>
     <div id="cat-folders"></div>
 
-    <h3 class="settings-section">Display <button class="section-reset" data-reset-section="display" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="display-section">Display <button class="section-reset" data-reset-section="display" title="Reset this section">Reset</button></h3>
     <label class="setting-row check-row">
       <div><div class="setting-label">Show per-chunk progress bars</div><div class="setting-hint">The small blue segment bars under each download.</div></div>
       <input id="set-chunks" type="checkbox" />
@@ -646,7 +751,7 @@
       <input id="set-native-notif" type="checkbox" />
     </label>
 
-    <h3 class="settings-section">Download scheduler <button class="section-reset" data-reset-section="scheduler" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="scheduler-section">Download scheduler <button class="section-reset" data-reset-section="scheduler" title="Reset this section">Reset</button></h3>
     <p class="setting-hint">When enabled, downloads only run inside these local-time windows (e.g. overnight off-peak hours). Running downloads pause when a window closes and resume when the next one opens.</p>
     <label class="setting-row check-row">
       <div><div class="setting-label">Enable scheduled windows</div></div>
@@ -662,7 +767,7 @@
     </div>
     <div id="sched-windows"></div>
 
-    <h3 class="settings-section">Smart speed limit <button class="section-reset" data-reset-section="smart" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="smart-section">Smart speed limit <button class="section-reset" data-reset-section="smart" title="Reset this section">Reset</button></h3>
     <p class="setting-hint">While a watched program (game, stream, call) is running, new downloads use the lower cap below. A cap of 0 means no new downloads start while gaming.</p>
     <label class="setting-row check-row">
       <div><div class="setting-label">Lower the limit while gaming / streaming</div></div>
@@ -677,7 +782,7 @@
       <textarea id="set-smart-watchlist" rows="3" class="setting-input" spellcheck="false"></textarea>
     </div>
 
-    <h3 class="settings-section">After download <button class="section-reset" data-reset-section="after" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="after-section">After download <button class="section-reset" data-reset-section="after" title="Reset this section">Reset</button></h3>
     <label class="setting-row check-row">
       <div><div class="setting-label">Auto-extract ZIP / RAR</div><div class="setting-hint">ZIP uses built-in Windows PowerShell; RAR needs 7-Zip on PATH. Windows only.</div></div>
       <input id="set-extract" type="checkbox" />
@@ -687,7 +792,7 @@
       <input id="set-scan" type="checkbox" />
     </label>
 
-    <h3 class="settings-section">Torrent seeding <button class="section-reset" data-reset-section="seeding" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="seeding-section">Torrent seeding <button class="section-reset" data-reset-section="seeding" title="Reset this section">Reset</button></h3>
     <label class="setting-row check-row">
       <div><div class="setting-label">Keep seeding after a torrent finishes</div></div>
       <input id="set-seed-enabled" type="checkbox" />
@@ -700,7 +805,7 @@
       </div>
     </div>
 
-    <h3 class="settings-section">Statistics</h3>
+    <h3 class="settings-section" id="statistics-section">Statistics</h3>
     <div id="stats-panel" class="stats-panel">
       <p class="setting-hint">Recorded locally from completed downloads. Press Refresh to update.</p>
       <div class="stats-grid">
@@ -712,7 +817,7 @@
       <button id="stats-refresh" class="secondary-btn small-btn">Refresh statistics</button>
     </div>
 
-    <h3 class="settings-section">Notifications <button class="section-reset" data-reset-section="notifications" title="Reset this section">Reset</button></h3>
+    <h3 class="settings-section" id="notifications-section">Notifications <button class="section-reset" data-reset-section="notifications" title="Reset this section">Reset</button></h3>
     <label class="setting-row check-row">
       <div><div class="setting-label">Completion banners</div><div class="setting-hint">Windows notification when a download finishes.</div></div>
       <input id="set-notif-banners" type="checkbox" />
@@ -733,7 +838,12 @@
       <div id="notif-categories" class="check-list"></div>
     </div>
 
-    <h3 class="settings-section">Keyboard shortcuts</h3>
+    <h3 class="settings-section" id="browser-section">Browser integration</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">Extension</div>
+      <p class="setting-hint">The browser extension sends download links to this app automatically while the app is running. The extension zip ships with this release: in Chrome open <span class="mono">chrome://extensions</span>, turn Developer mode ON, press Load unpacked, and select the unzipped extension folder. There are no switches here because interception is automatic — when the app is closed, the browser downloads normally. The first-run wizard repeats these steps.</p></div>
+    </div>
+    <h3 class="settings-section" id="shortcuts-section">Keyboard shortcuts</h3>
     <ul class="shortcut-list">
       <li><kbd>Ctrl</kbd> + <kbd>N</kbd> — New download task</li>
       <li><kbd>Space</kbd> — Pause / resume the selected downloads (ignored while typing)</li>
@@ -754,7 +864,7 @@
 
 <div id="drop-overlay" class="drop-overlay hidden">Drop a link to download it</div>
 <div id="ctx-menu" class="ctx-menu hidden"></div>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="renderer.js"></script>
 </body>
 </html>

@@ -1,5 +1,37 @@
 # Shahjahan Download Manager
 
+## 0.7.9 — One-click YouTube download now shows quality and audio choices
+
+- Home Download no longer auto-starts a YouTube download with fixed defaults: it now opens the YouTube card with the link and preview title already filled in, and waits. The card's top row is exactly the choice the user asked for — Video or Audio only, plus the video quality cap (Best, 2160p, 1440p, 1080p, 720p, 480p, 360p) and, for audio, the format (MP3, M4A, Opus, WAV, FLAC) and bitrate. Pressing the card's Download then downloads with those choices. No new screens, no new options invented: the card, its controls and the yt-dlp arguments already existed and were already tested — the Home button was just skipping past them with an auto-click.
+- The generic New Task form follows the same rule now: a YouTube link pasted there used to go through plain HTTP (which downloads the watch page itself, not the video). It now routes to the same YouTube card instead, like Home and drag & drop already did. Non-YouTube links are unchanged.
+- Tests 119 → 121 (Home routing no longer auto-clicks; generic-form routing covered; card controls asserted present).
+
+## 0.7.8 — Full-audit security fixes (torrent paths, update feed)
+
+- Torrent path traversal fixed: a crafted torrent could list file entries that escape the download folder (WebTorrent joins them verbatim), so cancelling such a torrent used to delete files outside the folder — the old cancel guard was a plain string-prefix check, and "/a/b-evil/x" starts with "/a/b". The session now drops escaping entries from cleanup, fails the run with a clear error as soon as escaping metadata is known (ready/metadata events, plus an immediate check), and the cancel guard now uses a resolved containment check. The torrent destination also falls back inside the folder when its name or single file escapes.
+- Update feed hardened: the feed's download URL must now be https:, so a compromised or mistyped feed can never push an http: or file: URL into the dialog's shell.openExternal call; and the dialog now shows the exact URL it will open, so the destination is visible before the click. No feed URL is baked in, so the updater stays inert unless a feed is configured.
+- No behavior changes otherwise: no engine, UI, feature or packaging changes. Tests 113 → 119 (new torrent containment suite + update-feed https tests).
+
+## 0.7.7 — Faster startup + leaner render path (general smoothness)
+
+- Startup is faster on every machine: the window now opens before the saved queue is restored (restore used to block first paint on disk I/O). Restored jobs still come back paused and still appear via the existing notification path when restore finishes. The quit path waits for a running restore before flushing, so a fast quit can never save a half-restored queue.
+- The 1 Hz render path no longer re-queries static elements on every refresh: bottom-bar, stats, list-header, bulk-bar and graph elements plus the count badges are resolved once at startup and reused. No behavior change, just fewer DOM lookups per tick.
+- Verified intact, not changed: the 1 Hz jobs broadcast, cached card refs, change-only writes, 32-cap chunk bars at 2 Hz, 2 Hz speed graph, no DOM work while hidden, blur only on large panels, and the reduce-effects toggle. No segment, concurrency, speed-limit or engine defaults were touched, and no dual-core-specific caps were added — these savings help weak systems without holding back strong ones.
+
+## 0.7.6 — Preview timeout, no duplicate buttons, simpler Downloads, no fake Settings card
+
+- Home preview can no longer hang on "Loading preview…": the best-effort preview fetch is capped at 20 s (the engine gives yt-dlp up to 90 s per attempt and retries once, which is why a slow network left the card stuck). On timeout it falls back to the URL card with a note, and Download still works. The YouTube card's own Fetch info keeps the full budget.
+- No more duplicate actions: the top-bar YouTube / Grab / New Task buttons now hide on the Home view (where the hero already has them) and show only on Downloads.
+- Downloads view simplified: the separate action row is gone — Resume All, Pause All, Clear Completed, Speed Monitor and Options now live behind one ⋯ button in the chips row, next to a compact Sort select. The stats row (speed, graph, counts) is hidden by default because the bottom bar already carries speed and counts; the speed graph comes back from the same ⋯ menu. Nothing is removed, only tucked away.
+- Settings cleanup: the fake "Example video.mp4" preview card (with its dead Download button) is removed from the Appearance section. Typography presets still work; the first-run wizard's own preview is untouched.
+
+## 0.7.5 — Home preview fixes + smoothness
+
+- Home preview now actually loads YouTube titles and thumbnails: metadata fetches on paste (keyboard paste included — it used to show only the "watch" fallback until blur), on blur, and once typing pauses (800 ms debounce, never per keystroke). A "Loading preview…" state shows while yt-dlp runs, and a failed fetch says so instead of silently showing a bare card.
+- Home Download now routes YouTube links to the YouTube card's own Download (fresh yt-dlp tool check, best quality / MP4 defaults, preview metadata passed through) — a YouTube link can no longer fall through to a plain HTTP download of the watch page.
+- Disk Space card renders on two deliberate lines (free/total, then % used) instead of one string wrapping mid-phrase.
+- View switching fades in (0.18 s) instead of snapping; the reduce-effects setting still disables all motion. The omni theme uses no backdrop blur, keeping it the cheapest theme to render.
+
 ## 0.7.4 — OmniGet-style UI overhaul
 
 - Complete UI/UX overhaul in the style of the OmniGet hero video, rebuilt with SDM branding only (no OmniGet name, no mascot): a light, airy "omni" theme (very light gray background, white panels, soft rounded corners, orange accent) is now the default look for existing installs via a one-time migration (a separate localStorage marker, so Reset-to-defaults never re-triggers it); every old theme is still available in Settings and the wizard.

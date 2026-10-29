@@ -33,6 +33,12 @@ for (const manifestName of ["manifest.json", "manifest.firefox.json"]) {
   }
 }
 
+// Version drift guard (added for 1.0.2): both manifests must track the app version.
+const appVersion = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")).version;
+for (const manifestName of ["manifest.json", "manifest.firefox.json"]) {
+  check(json(manifestName).version === appVersion, `${manifestName}: version matches app ${appVersion}`);
+}
+
 const background = read("background.js");
 check(background.includes("connectNative"), "background: connectNative");
 check(background.includes("downloads.onCreated"), "background: downloads.onCreated interception");

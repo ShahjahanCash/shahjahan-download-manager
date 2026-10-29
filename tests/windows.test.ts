@@ -80,4 +80,26 @@ describe("Windows hardening", () => {
     expect(noFeed.available).toBe(false);
     expect(noFeed.error).toBeNull();
   });
+
+  it("rejects non-https update feed urls (0.7.8 audit fix)", async () => {
+    // The dialog opens the feed url with shell.openExternal after a
+    // user click, so http: — and especially file: — must never reach it.
+    const httpFeed = async () => ({
+      ok: true,
+      json: async () => ({ version: "9.9.9", url: "http://example.com/setup.exe" }),
+    });
+    const httpResult = await checkForUpdates("0.5.0", "https://example.com/feed.json", httpFeed as never);
+    expect(httpResult.available).toBe(false);
+    expect(httpResult.url).toBeNull();
+    expect(httpResult.error).toMatch(/https/);
+
+    const fileFeed = async () => ({
+      ok: true,
+      json: async () => ({ version: "9.9.9", url: "file:///C:/Windows/setup.exe" }),
+    });
+    const fileResult = await checkForUpdates("0.5.0", "https://example.com/feed.json", fileFeed as never);
+    expect(fileResult.available).toBe(false);
+    expect(fileResult.url).toBeNull();
+    expect(fileResult.error).toMatch(/https/);
+  });
 });

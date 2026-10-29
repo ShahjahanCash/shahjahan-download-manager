@@ -25,6 +25,27 @@ describe("yt-dlp argument building", () => {
     expect(args[args.indexOf("--remux-video") + 1]).toBe("mp4");
   });
 
+  it("prefers 60 fps at the capped height, falling back to best at that height", () => {
+    const { args } = buildYtDlpArgs(URL, { kind: "video", quality: "1080", fps: "60" }, "out/x", "/ffmpeg");
+    expect(args).toContain("bv*[height<=1080][fps=60]+ba/bv*[height<=1080]+ba/b[height<=1080]");
+  });
+
+  it("prefers 60 fps with no height cap when quality is best", () => {
+    const { args } = buildYtDlpArgs(URL, { kind: "video", quality: "best", fps: "60" }, "out/x", "/ffmpeg");
+    expect(args).toContain("bv*[fps=60]+ba/bv*+ba/b");
+  });
+
+  it("caps frame rate at 30 fps when asked", () => {
+    const { args } = buildYtDlpArgs(URL, { kind: "video", quality: "1080", fps: "30" }, "out/x", "/ffmpeg");
+    expect(args).toContain("bv*[height<=1080][fps<=30]+ba/b[height<=1080]");
+  });
+
+  it("ignores frame rate for audio extraction", () => {
+    const { args } = buildYtDlpArgs(URL, { kind: "audio", audioFormat: "mp3", fps: "60" }, "out/x", "/ffmpeg");
+    expect(args).toContain("-x");
+    expect(args).not.toContain("-f");
+  });
+
   it("skips ffmpeg-gated features with a warning when ffmpeg is missing", () => {
     const { args, warnings } = buildYtDlpArgs(URL, { kind: "video", quality: "1080", container: "mp4" }, "out/x", null);
     expect(args).not.toContain("--remux-video");

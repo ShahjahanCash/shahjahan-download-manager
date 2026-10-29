@@ -11,6 +11,10 @@ export interface YoutubeOptions {
   kind: YoutubeKind;
   /** Video quality cap, e.g. "best", "2160", "1080", "720". Ignored for audio. */
   quality?: string;
+  /** Frame rate: "best" (any) | "60" (prefer 60 fps, fall back to best
+   * at or below the height cap when the video offers no 60 fps format)
+   * | "30" (cap at 30 fps). Ignored for audio. */
+  fps?: string;
   /** Preferred container for merged video: "mp4" | "webm" | "best". */
   container?: string;
   /** Audio format for audio-only: "mp3" | "m4a" | "opus" | "wav" | "flac". */
@@ -51,11 +55,16 @@ export interface YoutubeOptions {
   limitRate?: number;
 }
 
-function videoFormat(quality: string | undefined): string {
-  if (!quality || quality === "best") return "bv*+ba/b";
-  const height = Number(quality);
-  if (!Number.isFinite(height) || height <= 0) return "bv*+ba/b";
-  return `bv*[height<=${height}]+ba/b[height<=${height}]`;
+function videoFormat(quality: string | undefined, fps: string | undefined): string {
+  const height = quality && quality !== "best" ? Number(quality) : NaN;
+  const h = Number.isFinite(height) && height > 0 ? `[height<=${height}]` : "";
+  if (fps === "60") {
+    // Prefer an exact 60 fps format; the "/" fallback keeps the
+    // download working on videos that only offer lower frame rates.
+    return `bv*${h}[fps=60]+ba/bv*${h}+ba/b${h}`;
+  }
+  if (fps === "30") return `bv*${h}[fps<=30]+ba/b${h}`;
+  return `bv*${h}+ba/b${h}`;
 }
 
 /**
@@ -102,7 +111,7 @@ export function buildYtDlpArgs(
     if (quality && quality !== "best") args.push("--audio-quality", `${quality}K`);
     else args.push("--audio-quality", "0");
   } else {
-    args.push("-f", videoFormat(options.quality));
+    args.push("-f", videoFormat(options.quality, options.fps));
     const container = options.container;
     if (container && container !== "best") {
       if (hasFfmpeg) args.push("--remux-video", container);

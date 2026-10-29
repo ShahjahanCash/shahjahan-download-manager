@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shahjahan Download Manager — Design Preview</title>
+<style>/*STYLE*/</style>
+<style>
+/* Preview-only helpers (not part of the app) */
+.pv-banner { background: #3b2f00; border: 1px solid #8a6d00; color: #ffe082; border-radius: 10px; padding: 10px 14px; margin: 0 0 14px; font-size: 13px; }
+.pv-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+.pv-tabs button { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text-2); cursor: pointer; }
+.pv-tabs button.active { background: var(--accent); border-color: var(--accent); color: #0b0b11; }
+.pv-hidden { display: none !important; }
+.pv-filter { display: flex; gap: 18px; border-bottom: 1px solid var(--border); margin-bottom: 14px; font-size: 13px; font-weight: 600; }
+.pv-filter span { padding-bottom: 8px; color: var(--muted); }
+.pv-filter span.active { color: var(--text); border-bottom: 2px solid var(--accent); }
+.pv-stages { display: flex; gap: 6px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.pv-stages b { color: var(--text); }
+.pv-detail-grid { display: grid; grid-template-columns: 130px 1fr; gap: 8px 16px; font-size: 13px; margin-top: 12px; }
+.pv-detail-grid dt { color: var(--muted); }
+.pv-detail-grid dd { margin: 0; word-break: break-all; }
+.pv-chunks { display: flex; gap: 3px; margin-top: 10px; }
+.pv-chunks i { display: block; height: 6px; flex: 1; border-radius: 3px; background: var(--accent); }
+.pv-chunks i.empty { background: var(--border); }
+.pv-thead, .pv-trow { display: grid; grid-template-columns: 28px 52px minmax(0,1fr) 100px 120px 100px 100px 100px auto; gap: 12px; align-items: center; }
+.pv-thead { font-size: 12px; font-weight: 700; color: var(--muted); padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.pv-trow { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.pv-trow:hover { background: var(--panel-2); }
+.pv-trow > span:nth-child(3) { min-width: 0; overflow: hidden; }
+.pv-trow > span:nth-child(3) small { word-break: break-all; }
+.pv-trow > span:last-child { display: flex; gap: 6px; flex-wrap: nowrap; }
+.pv-setting-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.pv-setting-row:last-child { border-bottom: 0; }
+.pv-setting-row small { color: var(--muted); display: block; margin-top: 2px; }
+.pv-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); display: inline-block; }
+.pv-swatch.active { border-color: #fff; outline: 2px solid var(--accent); }
+.pv-catnav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.pv-catnav span { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.pv-catnav span.active { border-color: var(--accent); color: var(--text); }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon brand-icon-img">⬇</div>
+      <div class="brand-text">SHAHJAHAN<br />DOWNLOAD MANAGER</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item pv-nav active" data-pv-screen="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
+      <button class="nav-item pv-nav" data-pv-screen="downloads"><span class="nav-icon">↓</span> Downloads <span class="count">4</span></button>
+      <button class="nav-item pv-nav" data-pv-screen="add"><span class="nav-icon">＋</span> Add Download</button>
+      <button class="nav-item pv-nav" data-pv-screen="details"><span class="nav-icon">ℹ</span> Details</button>
+      <button class="nav-item pv-nav" data-pv-screen="settings"><span class="nav-icon">⚙</span> Settings</button>
+    </nav>
+    <div class="queues-head"><h4>Queues</h4></div>
+    <nav class="nav">
+      <button class="nav-item">Main <span class="count">3</span></button>
+      <button class="nav-item">Videos <span class="count">1</span></button>
+    </nav>
+    <div class="queues-head"><h4>Categories</h4></div>
+    <nav class="nav">
+      <button class="nav-item active"><span class="nav-icon">▦</span> All categories</button>
+      <button class="nav-item"><span class="nav-icon">▶</span> Video</button>
+      <button class="nav-item"><span class="nav-icon">♪</span> Music</button>
+      <button class="nav-item"><span class="nav-icon">▤</span> Document</button>
+      <button class="nav-item"><span class="nav-icon">▭</span> Compressed</button>
+      <button class="nav-item"><span class="nav-icon">▣</span> Program</button>
+      <button class="nav-item"><span class="nav-icon">▦</span> Other</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="disk-card">
+        <h4>Disk Space</h4>
+        <div class="disk-bar"><div style="width:65%"></div></div>
+        <div class="disk-text"><span>90.02 GiB free</span><span>of 137.39 GiB</span></div>
+      </div>
+      <p class="foot-note">Max concurrent: 3<br />Segments download in parallel and resume from where they stopped.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="search" placeholder="Search Tasks" />
+      </div>
+      <div class="top-actions">
+        <button class="yt-btn" type="button">▶ YouTube</button>
+        <button class="tool-btn" type="button">🌐 Grab</button>
+        <button class="new-task-btn" type="button">＋ New Task</button>
+      </div>
+    </header>
+
+    <div class="pv-banner">Design preview — ye sirf dikhane ke liye hai. Is me sample data hai, asli downloads nahi chal rahe aur buttons kuch download nahi karte. Asli app ka dark theme + layout yahi hoga.</div>
+    <div class="pv-tabs" role="tablist">
+      <button type="button" class="pv-tab active" data-pv-screen="dashboard">Dashboard</button>
+      <button type="button" class="pv-tab" data-pv-screen="downloads">Downloads</button>
+      <button type="button" class="pv-tab" data-pv-screen="add">Add Download</button>
+      <button type="button" class="pv-tab" data-pv-screen="details">Details</button>
+      <button type="button" class="pv-tab" data-pv-screen="settings">Settings</button>
+    </div>
+
+    <!-- ============ DASHBOARD ============ -->
+    <section id="pv-dashboard" class="dashboard-view">
+      <div class="dash-head">
+        <div>
+          <h1 class="dash-title">Overview</h1>
+          <p class="dash-subtitle">Everything downloading right now, at a glance — live from your download list, nothing simulated.</p>
+        </div>
+        <div class="dash-actions">
+          <button class="download-btn" type="button">＋ New Task</button>
+          <button class="yt-btn" type="button">▶ YouTube</button>
+          <button class="tool-btn" type="button">🌐 Grab</button>
+          <button class="tool-btn" type="button">📄 Import .txt</button>
+        </div>
+      </div>
+      <div class="dash-stats">
+        <div class="dash-stat"><span class="dash-stat-label">Total</span><span class="dash-stat-value mono">12</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Active</span><span class="dash-stat-value mono">3</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Completed</span><span class="dash-stat-value mono">8</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Failed</span><span class="dash-stat-value mono">1</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Speed now</span><span class="dash-stat-value mono">8.4 MiB/s</span></div>
+        <div class="dash-stat"><span class="dash-stat-label">Time left</span><span class="dash-stat-value mono">4m 12s</span></div>
+      </div>
+      <div class="dash-overall">
+        <div class="dash-overall-row">
+          <div class="dash-ring-wrap">
+            <svg class="dash-ring" viewBox="0 0 48 48" aria-hidden="true"><circle class="dash-ring-track" cx="24" cy="24" r="20" /><circle class="dash-ring-fill" cx="24" cy="24" r="20" transform="rotate(-90 24 24)" style="stroke-dasharray:125.66;stroke-dashoffset:40.2" /></svg>
+            <span class="dash-ring-text mono">68%</span>
+          </div>
+          <div class="dash-overall-main">
+            <div class="dash-overall-top"><span class="dash-overall-label">Overall progress</span><span class="dash-overall-text mono">612 MB / 900 MB</span></div>
+            <div class="bar dash-overall-bar"><div style="width:68%"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dash-attention">
+        <span>1 download failed — connection reset. Review karke dobara shuru karein.</span>
+        <button class="secondary-btn small-btn" type="button">Review failed</button>
+      </div>
+      <div class="dash-columns">
+        <div class="dash-panel">
+          <h2 class="dash-panel-title">Recent downloads</h2>
+          <div class="dash-recent">
+            <p>▶ Crimson Desert — Official Trailer.mp4 <span class="mono">68%</span></p>
+            <p>♪ Tekken 7 — Soundtrack.mp3 <span class="mono">100%</span></p>
+            <p>▭ RDR2 — Mod Pack.zip <span class="mono">42%</span></p>
+          </div>
+        </div>
+        <div class="dash-panel">
+          <h2 class="dash-panel-title">Storage</h2>
+          <p class="dash-disk mono">90.02 GiB free of 137.39 GiB</p>
+          <p class="setting-hint">Files save to your Downloads folder, sorted by category. Change the folder in Settings → Downloads.</p>
+          <h2 class="dash-panel-title">Shortcuts</h2>
+          <p class="setting-hint"><span class="mono">Ctrl+N</span> New task · <span class="mono">Space</span> Pause / resume · <span class="mono">Del</span> Delete · <span class="mono">Esc</span> Close menus</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DOWNLOADS ============ -->
+    <section id="pv-downloads" class="pv-hidden">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="download-btn" type="button">＋ Add URL</button>
+        <button class="secondary-btn" type="button">▶ Resume All</button>
+        <button class="secondary-btn" type="button">⏸ Stop All</button>
+        <button class="secondary-btn" type="button">📂 Open Folder</button>
+      </div>
+      <div class="pv-filter"><span class="active">All (4)</span><span>Downloading (1)</span><span>Paused (1)</span><span>Completed (1)</span><span>Error (1)</span><span>Queued (0)</span></div>
+      <div class="pv-thead"><span></span><span></span><span>Filename</span><span>Size</span><span>Downloaded</span><span>Speed</span><span>Time Left</span><span>Status</span><span>Actions</span></div>
+      <div class="pv-trow"><span><input type="checkbox" /></span><span class="tile Video" style="width:52px;height:52px"><span class="tile-icon">▶</span><span class="tile-ext">MP4</span></span><span><b>Crimson Desert — Official Trailer.mp4</b><br /><small class="mono" style="color:var(--muted)">C:\Users\shahj\Downloads\DownloadManager\Video</small><div class="bar" style="margin-top:6px"><div style="width:68%"></div></div></span><span class="mono">900 MB</span><span class="mono">612 MB (68%)</span><span class="mono">8.4 MiB/s</span><span class="mono">34s</span><span><span class="pill downloading">Downloading</span></span><span><button class="icon-btn" title="Pause">⏸</button> <button class="icon-btn" title="Details">ℹ</button> <button class="icon-btn danger" title="Cancel">✕</button></span></div>
+      <div class="pv-trow"><span><input type="checkbox" /></span><span class="tile Audio" style="width:52px;height:52px"><span class="tile-icon">♪</span><span class="tile-ext">MP3</span></span><span><b>Tekken 7 — Soundtrack.mp3</b><br /><small class="mono" style="color:var(--muted)">C:\Users\shahj\Downloads\DownloadManager\Audio</small><div class="bar" style="margin-top:6px"><div style="width:100%"></div></div></span><span class="mono">148 MB</span><span class="mono">148 MB (100%)</span><span class="mono">—</span><span class="mono">—</span><span><span class="pill completed">Completed</span></span><span><button class="icon-btn" title="Details">ℹ</button> <button class="icon-btn" title="Details">ℹ</button> <button class="icon-btn danger" title="Cancel">✕</button></span></div>
+      <div class="pv-trow"><span><input type="checkbox" /></span><span class="tile Compressed" style="width:52px;height:52px"><span class="tile-icon">▭</span><span class="tile-ext">ZIP</span></span><span><b>RDR2 — Mod Pack.zip</b><br /><small class="mono" style="color:var(--muted)">C:\Users\shahj\Downloads\DownloadManager\Compressed</small><div class="bar" style="margin-top:6px"><div style="width:42%"></div></div></span><span class="mono">1.2 GB</span><span class="mono">504 MB (42%)</span><span class="mono">Paused</span><span class="mono">—</span><span><span class="pill paused">Paused</span></span><span><button class="icon-btn" title="Resume">▶</button> <button class="icon-btn" title="Details">ℹ</button> <button class="icon-btn danger" title="Cancel">✕</button></span></div>
+      <div class="pv-trow"><span><input type="checkbox" /></span><span class="tile Video" style="width:52px;height:52px"><span class="tile-icon">▶</span><span class="tile-ext">MP4</span></span><span><b>One Piece — Episode 1120.mp4</b><br /><small class="mono" style="color:var(--muted)">C:\Users\shahj\Downloads\DownloadManager\Video</small><div class="bar" style="margin-top:6px"><div style="width:12%"></div></div></span><span class="mono">800 MB</span><span class="mono">96 MB (12%)</span><span class="mono">—</span><span class="mono">—</span><span><span class="pill failed">Error</span></span><span><button class="icon-btn" title="Retry">↻</button> <button class="icon-btn" title="Details">ℹ</button> <button class="icon-btn danger" title="Cancel">✕</button></span></div>
+    </section>
+
+    <!-- ============ ADD DOWNLOAD ============ -->
+    <section id="pv-add" class="pv-hidden">
+      <div class="home-hero">
+        <h1 class="home-title">New download</h1>
+        <p class="home-subtitle">Paste a link below — the app sorts it by category and resumes where it stopped.</p>
+        <label class="field-label" style="display:block;margin-bottom:8px">Paste video link here</label>
+        <div class="home-pill">
+          <span class="home-pill-plus">＋</span>
+          <input type="url" placeholder="Paste a link or search" value="https://www.youtube.com/watch?v=example" />
+          <button class="secondary-btn small-btn" type="button">Paste</button>
+        </div>
+        <div class="home-chips">
+          <button class="home-chip" type="button">▶ YouTube</button>
+          <button class="home-chip" type="button">🌐 Site grabber</button>
+          <button class="home-chip" type="button">📄 Import .txt</button>
+        </div>
+      </div>
+      <div class="dash-panel" style="margin-top:16px">
+        <h2 class="dash-panel-title">YouTube — video info</h2>
+        <p class="setting-hint">Sample video · Up to 1080p · <b>60 fps available</b> · Duration 12:48</p>
+        <div class="segmented" style="margin-top:10px">
+          <button class="active" type="button">Video</button>
+          <button type="button">Audio only</button>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label class="field-label">Video quality (max)</label>
+          <div class="pill-row">
+            <button type="button">Best</button>
+            <button type="button">2160p</button>
+            <button type="button">1440p</button>
+            <button type="button" class="active">1080p</button>
+            <button type="button">720p</button>
+            <button type="button">480p</button>
+            <button type="button">360p</button>
+          </div>
+        </div>
+        <div class="field" style="margin-top:14px">
+          <label class="field-label">Frame rate (naya option — 60 fps preview me select hai)</label>
+          <div class="pill-row">
+            <button type="button">Best (any)</button>
+            <button type="button" class="active">60 fps (preferred)</button>
+            <button type="button">30 fps (max)</button>
+          </div>
+        </div>
+        <div style="margin-top:16px"><button class="download-btn" type="button">⬇ Download</button></div>
+        <p class="setting-hint" style="margin-top:10px">Save to: C:\Users\shahj\Downloads\DownloadManager\Video</p>
+      </div>
+    </section>
+
+    <!-- ============ DETAILS ============ -->
+    <section id="pv-details" class="pv-hidden">
+      <div class="dash-panel">
+        <h2 class="dash-panel-title">Download details — Crimson Desert — Official Trailer.mp4</h2>
+        <div class="bar" style="margin-top:12px"><div style="width:68%"></div></div>
+        <div class="pv-chunks"><i></i><i></i><i></i><i></i><i></i><i class="empty"></i><i class="empty"></i><i class="empty"></i></div>
+        <dl class="pv-detail-grid">
+          <dt>URL</dt><dd>https://www.youtube.com/watch?v=example</dd>
+          <dt>Destination</dt><dd>C:\Users\shahj\Downloads\DownloadManager\Video</dd>
+          <dt>Status</dt><dd>Downloading — 68% · 612 MB / 900 MB</dd>
+          <dt>Speed</dt><dd>8.4 MiB/s · ETA 34s · 4 segments</dd>
+          <dt>Format</dt><dd class="mono">bv*[height&lt;=1080][fps=60]+ba / bv*[height&lt;=1080]+ba</dd>
+          <dt>Engine</dt><dd>yt-dlp (bundled) + ffmpeg merge</dd>
+        </dl>
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button class="secondary-btn" type="button">⏸ Pause</button>
+          <button class="secondary-btn" type="button">↻ Retry</button>
+          <button class="secondary-btn" type="button">📋 Copy link</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section id="pv-settings" class="pv-hidden">
+      <div class="pv-catnav"><span class="active">Appearance</span><span>Downloads</span><span>Speed</span><span>Browser</span><span>Advanced</span></div>
+      <div class="dash-panel">
+        <div class="pv-setting-row"><div>Theme<small>Dark theme — refined Mission control look</small></div>
+          <div class="segmented"><button type="button">Omni</button><button type="button">Light</button><button type="button" class="active">Dark</button><button type="button">Glass</button></div></div>
+        <div class="pv-setting-row"><div>Accent colour<small>Buttons, progress bars aur highlights</small></div>
+          <div><span class="pv-swatch active" style="background:#60cd38"></span> <span class="pv-swatch" style="background:#2d96f6"></span> <span class="pv-swatch" style="background:#f59e0b"></span> <span class="pv-swatch" style="background:#ec4899"></span></div></div>
+        <div class="pv-setting-row"><div>Font size<small>Interface text size</small></div><div class="segmented"><button type="button">Small</button><button type="button" class="active">Medium</button><button type="button">Large</button></div></div>
+        <div class="pv-setting-row"><div>Downloads folder<small>Files category ke mutabiq sort hokar yahan save hote hain</small></div><div class="mono" style="font-size:12px">C:\Users\shahj\Downloads\DownloadManager</div></div>
+        <div class="pv-setting-row"><div>Speed limit<small>0 = no limit</small></div><div class="mono">No limit</div></div>
+        <div class="pv-setting-row"><div>Max concurrent downloads<small>Ek waqt me kitni downloads chalein</small></div><div class="mono">3</div></div>
+        <div class="pv-setting-row"><div>Browser integration<small>Chrome / Firefox extension (v0.7.0) se browser se seedha download bhejein. Koi fake toggle nahi — extension alag se install hoti hai.</small></div><div class="mono" style="font-size:12px">Extension 0.7.0</div></div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+document.querySelectorAll("[data-pv-screen]").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var screen = btn.dataset.pvScreen;
+    document.querySelectorAll("[data-pv-screen]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+    ["dashboard", "downloads", "add", "details", "settings"].forEach(function (s) {
+      document.getElementById("pv-" + s).classList.toggle("pv-hidden", s !== screen);
+    });
+    window.scrollTo(0, 0);
+  });
+});
+document.querySelectorAll(".pill-row button").forEach(function (b) {
+  b.addEventListener("click", function () {
+    b.parentElement.querySelectorAll("button").forEach(function (x) { x.classList.remove("active"); });
+    b.classList.add("active");
+  });
+});
+</script>
+</body>
+</html>

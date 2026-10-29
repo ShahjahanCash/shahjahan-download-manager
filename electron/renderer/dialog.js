@@ -51,7 +51,17 @@ function render(job) {
   document.getElementById("filename").textContent = job.filename;
   document.getElementById("url").textContent = job.url;
   document.getElementById("destination").textContent = job.destination;
-  document.getElementById("status").textContent = job.status;
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = job.status;
+  statusEl.className = `pill ${job.status}`;
+  // Real actions, same bridge as the main window (the dialog uses
+  // the shared preload): pause a running job, resume a paused one,
+  // retry a failed one. Completed jobs get no action — there is
+  // nothing to pause or retry.
+  document.getElementById("dlg-pause").classList.toggle("hidden",
+    !(job.status === "downloading" || job.status === "queued"));
+  document.getElementById("dlg-resume").classList.toggle("hidden", job.status !== "paused");
+  document.getElementById("dlg-retry").classList.toggle("hidden", job.status !== "failed");
   document.getElementById("progress").textContent = p
     ? `${p.percent != null ? (p.percent * 100).toFixed(1) : "?"}% · ${formatBytes(p.downloadedBytes)} / ${p.totalBytes != null ? formatBytes(p.totalBytes) : "?"}`
     : "—";
@@ -102,6 +112,15 @@ function render(job) {
 }
 
 let currentCommand = "";
+document.getElementById("dlg-pause").addEventListener("click", async () => {
+  await window.dm.pause(jobId);
+});
+document.getElementById("dlg-resume").addEventListener("click", async () => {
+  await window.dm.resume(jobId);
+});
+document.getElementById("dlg-retry").addEventListener("click", async () => {
+  await window.dm.resume(jobId);
+});
 document.getElementById("copy-command").addEventListener("click", async () => {
   if (!currentCommand) return;
   try {

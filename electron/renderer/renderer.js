@@ -8,6 +8,27 @@ const errorEl = document.getElementById("form-error");
 const searchEl = document.getElementById("search");
 const listTitleEl = document.getElementById("list-title");
 const listCountEl = document.getElementById("list-count");
+// Rendering hot path (0.7.7, general smoothness): the 1 Hz render used
+// to re-query these static elements on every refresh. They never leave
+// the DOM, so resolve them once here — same pattern as jobsEl above.
+// This helps every machine (fewer DOM lookups per tick) and holds
+// nothing back on fast ones; no behavior changes.
+const bottomStatusEl = document.getElementById("bottom-status");
+const bottomPercentEl = document.getElementById("bottom-percent");
+const bottomSpeedEl = document.getElementById("bottom-speed");
+const statSpeedEl = document.getElementById("stat-speed");
+const statActiveEl = document.getElementById("stat-active");
+const statDoneEl = document.getElementById("stat-done");
+const listHeaderEl = document.getElementById("list-header");
+const bulkBarEl = document.getElementById("bulk-bar");
+const bulkCountEl = document.getElementById("bulk-count");
+const selectAllEl = document.getElementById("select-all");
+const speedGraphEl = document.getElementById("speed-graph");
+const countEls = {};
+for (const key of ["all", "downloading", "queued", "paused", "completed", "failed"]) {
+  const el = document.getElementById(`count-${key}`);
+  if (el) countEls[key] = el;
+}
 /* ---- Settings: appearance + display live in localStorage (both
    windows share this origin, so the details dialog matches); the
    engine settings (folder, max concurrent) live in main and are
@@ -147,6 +168,7 @@ function syncSettingsForm() {
   renderNotifCategories(prefs.disabledCategories || []);
   renderQueueLimits();
   refreshStats();
+  updateAddDest();
 }
 
 /* ---- Settings search + per-section reset (0.7.2, OmniGet-style) ----
@@ -334,12 +356,35 @@ function renderQueueLimits() {
   for (const queue of queueList) {
     const row = document.createElement("div");
     row.className = "setting-row folder-row";
-    row.innerHTML = `<div><div class="setting-label">${escapeHtml(queue.name)}</div></div>
+    // Rename lives here (not in the sidebar, where an inline edit
+    // would fight the queue filter click): Main Queue cannot be
+    // renamed — manager.renameQueue refuses id "main" — so its
+    // field is disabled rather than silently failing.
+    row.innerHTML = `<div><div class="setting-label">Queue</div></div>
       <div class="folder-controls">
+        <input class="setting-input" type="text" maxlength="40" data-queue-name="${escapeHtml(queue.id)}" value="${escapeHtml(queue.name)}" ${queue.id === "main" ? 'disabled title="Main Queue cannot be renamed"' : 'title="Rename queue"'} />
         <input class="setting-input" type="number" min="0" placeholder="0 = no cap" data-queue-limit="${escapeHtml(queue.id)}" value="${queue.speedLimitBytesPerSec || ""}" />
       </div>`;
     wrap.appendChild(row);
   }
+  wrap.querySelectorAll("input[data-queue-name]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const name = input.value.trim();
+      const current = queueList.find((q) => q.id === input.dataset.queueName);
+      if (!name || !current || name === current.name) {
+        if (current) input.value = current.name;
+        return;
+      }
+      const ok = await window.dm.renameQueue(input.dataset.queueName, name);
+      if (!ok) {
+        input.value = current.name;
+        showToast("That queue cannot be renamed");
+        return;
+      }
+      await refreshQueues();
+      renderQueueLimits();
+    });
+  });
   wrap.querySelectorAll("input[data-queue-limit]").forEach((input) => {
     input.addEventListener("change", async () => {
       await window.dm.setQueueLimit(input.dataset.queueLimit, Number(input.value) || 0);
@@ -418,6 +463,17 @@ document.getElementById("settings-done").addEventListener("click", closeSettings
 settingsOverlay.addEventListener("click", (event) => {
   if (event.target === settingsOverlay) closeSettings();
 });
+/* ---- Settings category nav (premium redesign) ----
+ * Plain scroll-to buttons over the existing sections: no control
+ * moves, no reset key changes, and the search walk (which follows
+ * header siblings) is untouched because the nav sits above the
+ * first header, not between sections. */
+document.querySelectorAll(".settings-nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".settings-nav-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    document.getElementById(btn.dataset.settingsTarget)?.scrollIntoView({ block: "start" });
+  });
+});
 document.getElementById("theme-segmented").addEventListener("click", (event) => {
   const btn = event.target.closest("button[data-theme-value]");
   if (!btn) return;
@@ -476,11 +532,18 @@ document.getElementById("set-effects").addEventListener("change", (event) => {
 document.getElementById("set-native-notif").addEventListener("change", (event) => {
   void pushEngineSettings({ nativeNotifications: event.target.checked });
 });
+/* Destination line on the New Task card: shows the real engine
+ * downloads folder, never a guessed path. */
+function updateAddDest() {
+  const el = document.getElementById("add-dest");
+  if (el) el.textContent = engineSettings.downloadsDir || "your Downloads folder";
+}
 async function pushEngineSettings(partial) {
   try {
     engineSettings = await window.dm.setSettings(partial);
     applySettings();
     refreshDisk();
+    updateAddDest();
   } catch { /* main keeps the old values; form re-syncs on next open */ }
 }
 document.getElementById("set-concurrent").addEventListener("change", (event) => {
@@ -525,6 +588,31 @@ toastEl.addEventListener("click", () => {
   clearTimeout(toastTimer);
 });
 
+// 0.8.0: clipboard helper for the context-menu copies. The async API
+// is preferred; the textarea fallback covers builds where it rejects.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied to clipboard");
+    return;
+  } catch {
+    // Fall through to the textarea fallback below.
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    showToast("Copied to clipboard");
+  } catch {
+    showToast("Copy failed — select the text manually");
+  }
+}
+
 // Filters (0.7.4): Downloads-view chips for status, a category select,
 // and the sidebar queue list. One filter is active at a time, exactly
 // like the old sidebar list.
@@ -532,30 +620,50 @@ let filterKind = "status";
 let filterValue = "all";
 let searchQuery = "";
 let gridView = false;
-let currentView = "home";
+let currentView = "dashboard";
 
+const viewDashboardEl = document.getElementById("view-dashboard");
 const viewHomeEl = document.getElementById("view-home");
 const viewDownloadsEl = document.getElementById("view-downloads");
 function syncViewNav() {
+  document.getElementById("nav-dashboard")?.classList.toggle("active", currentView === "dashboard");
   document.getElementById("nav-home")?.classList.toggle("active", currentView === "home");
   document.getElementById("nav-downloads")?.classList.toggle("active", currentView === "downloads");
+  // The top-bar trio (YouTube / Grab / New Task) duplicates the Home
+  // hero actions, so it hides on Home and shows on Downloads only.
+  // The Dashboard has its own quick actions, so the trio hides there
+  // too — same rule, one more view.
+  document.body.classList.toggle("on-home-view", currentView === "home");
+  document.body.classList.toggle("on-dashboard-view", currentView === "dashboard");
+}
+function showDashboardView() {
+  currentView = "dashboard";
+  if (viewDashboardEl) viewDashboardEl.classList.remove("hidden");
+  viewHomeEl.classList.add("hidden");
+  viewDownloadsEl.classList.add("hidden");
+  syncViewNav();
+  refresh();
 }
 function showHomeView() {
   currentView = "home";
+  if (viewDashboardEl) viewDashboardEl.classList.add("hidden");
   viewHomeEl.classList.remove("hidden");
   viewDownloadsEl.classList.add("hidden");
   syncViewNav();
 }
 function showDownloadsView() {
   currentView = "downloads";
+  if (viewDashboardEl) viewDashboardEl.classList.add("hidden");
   viewHomeEl.classList.add("hidden");
   viewDownloadsEl.classList.remove("hidden");
   syncViewNav();
   refresh();
 }
+document.getElementById("nav-dashboard")?.addEventListener("click", showDashboardView);
 document.getElementById("nav-home").addEventListener("click", showHomeView);
 document.getElementById("nav-downloads").addEventListener("click", showDownloadsView);
 document.getElementById("bottom-view-downloads").addEventListener("click", showDownloadsView);
+syncViewNav();
 document.getElementById("nav-about").addEventListener("click", () => {
   openSettings();
   document.getElementById("about-section")?.scrollIntoView({ block: "start" });
@@ -565,13 +673,18 @@ document.getElementById("sidebar-collapse").addEventListener("click", (event) =>
   event.target.textContent = collapsed ? "▶" : "◀ Collapse sidebar";
 });
 
-const FILTER_TITLES = { all: "All Downloads", downloading: "Active", queued: "Queued", completed: "Completed", paused: "Paused", failed: "Failed" };
+const FILTER_TITLES = { all: "All Downloads", downloading: "Downloading", queued: "Queued", completed: "Completed", paused: "Paused", failed: "Failed" };
 function syncFilterControls() {
   document.querySelectorAll("#filter-chips .chip").forEach((chip) => {
     chip.classList.toggle("active", filterKind === "status" && chip.dataset.filterChip === filterValue);
   });
   const cat = document.getElementById("category-filter");
   if (cat) cat.value = filterKind === "category" ? filterValue : "all";
+  document.querySelectorAll("#cat-nav [data-cat-filter]").forEach((btn) => {
+    btn.classList.toggle("active",
+      (filterKind === "category" && btn.dataset.catFilter === filterValue) ||
+      (filterKind !== "category" && btn.dataset.catFilter === "all"));
+  });
   if (filterKind !== "queue") {
     document.querySelectorAll("#queue-nav .nav-item").forEach((b) => b.classList.remove("active"));
   }
@@ -608,6 +721,12 @@ document.getElementById("filter-chips").addEventListener("click", (event) => {
 document.getElementById("category-filter").addEventListener("change", (event) => {
   setCategoryFilter(event.target.value);
 });
+// Download Manager Pro: sidebar category list reuses the same filter
+// state as the category select above — one filter, two controls.
+document.getElementById("cat-nav").addEventListener("click", (event) => {
+  const btn = event.target.closest("button[data-cat-filter]");
+  if (btn) setCategoryFilter(btn.dataset.catFilter);
+});
 document.getElementById("view-limit").addEventListener("change", (event) => {
   // Mirror of the Settings default limit: reuse its own handler so
   // saving and form defaults stay exactly the same as a manual change.
@@ -624,6 +743,8 @@ const homeUrlEl = document.getElementById("home-url");
 const homePreviewEl = document.getElementById("home-preview");
 const homeStatusEl = document.getElementById("home-status");
 let homePreviewUrl = "";
+let homeYtInfo = null;
+let homePreviewTimer = null;
 function homeMetaFor(url) {
   try {
     const parsed = new URL(url);
@@ -633,30 +754,69 @@ function homeMetaFor(url) {
     return { title: url, meta: "", thumb: "" };
   }
 }
+// The engine gives yt-dlp up to 90 s per attempt (and retries once),
+// so a slow network can leave the Home preview on "Loading preview…"
+// for minutes. The preview is best-effort by design: cap it at 20 s
+// here and fall back to the URL card. (The YouTube card's own Fetch
+// info keeps the full budget because the user asked for it explicitly.)
+function ytInfoForPreview(url) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error("preview timed out")), 20000);
+  });
+  return Promise.race([window.dm.ytInfo(url), timeout]).finally(() => window.clearTimeout(timer));
+}
+
 async function refreshHomePreview(withNetwork = false) {
   const url = homeUrlEl.value.trim();
+  // A new URL invalidates the previous video's metadata: without this,
+  // the Download branch could attach a stale title/videoId to a new job.
+  if (homePreviewUrl !== url) homeYtInfo = null;
   homePreviewUrl = url;
   if (!url) {
     homePreviewEl.classList.add("hidden");
     homeStatusEl.textContent = "";
     return;
   }
+  homeStatusEl.textContent = "";
   let info = homeMetaFor(url);
-  // Network metadata only on paste/blur, never per keystroke: typing
-  // a YouTube URL must not spawn a yt-dlp info fetch on every letter.
+  let previewFailed = false;
+  // Network metadata only on paste/blur/debounced typing, never per
+  // keystroke: typing a YouTube URL must not spawn a yt-dlp info fetch
+  // on every letter.
   if (withNetwork && /youtube\.com\/watch|youtu\.be\//i.test(url)) {
-    try {
-      const yt = await window.dm.ytInfo(url);
-      if (homePreviewUrl === url && yt) {
-        info = {
-          title: yt.title || info.title,
-          meta: [yt.uploader, yt.durationSeconds != null ? formatEta(yt.durationSeconds) : "", yt.isPlaylist ? "Playlist" : ""].filter(Boolean).join(" · ") || info.meta,
-          thumb: yt.thumbnail || "",
-        };
+    if (homeYtInfo) {
+      info = {
+        title: homeYtInfo.title || info.title,
+        meta: [homeYtInfo.uploader, homeYtInfo.durationSeconds != null ? formatEta(homeYtInfo.durationSeconds) : "", homeYtInfo.isPlaylist ? "Playlist" : ""].filter(Boolean).join(" · ") || info.meta,
+        thumb: homeYtInfo.thumbnail || "",
+      };
+    } else {
+      // Loading state: pasting must never look dead while yt-dlp runs.
+      document.getElementById("home-title").textContent = "Loading preview…";
+      document.getElementById("home-meta").textContent = info.meta;
+      homePreviewEl.classList.remove("hidden");
+      try {
+        const yt = await ytInfoForPreview(url);
+        if (homePreviewUrl === url && yt) {
+          homeYtInfo = yt;
+          info = {
+            title: yt.title || info.title,
+            meta: [yt.uploader, yt.durationSeconds != null ? formatEta(yt.durationSeconds) : "", yt.isPlaylist ? "Playlist" : ""].filter(Boolean).join(" · ") || info.meta,
+            thumb: yt.thumbnail || "",
+          };
+        } else if (homePreviewUrl === url) {
+          previewFailed = true;
+        }
+      } catch {
+        // Best-effort: fall back to the URL-derived preview, but say so
+        // instead of silently showing a bare "watch" card.
+        if (homePreviewUrl === url) previewFailed = true;
       }
-    } catch { /* best-effort: fall back to the URL-derived preview */ }
+    }
   }
   if (homePreviewUrl !== url) return;
+  if (previewFailed) homeStatusEl.textContent = "Preview couldn't load — Download still works.";
   document.getElementById("home-title").textContent = info.title;
   document.getElementById("home-meta").textContent = info.meta;
   const thumb = document.getElementById("home-thumb");
@@ -664,7 +824,22 @@ async function refreshHomePreview(withNetwork = false) {
   else thumb.removeAttribute("src");
   homePreviewEl.classList.remove("hidden");
 }
-homeUrlEl.addEventListener("input", () => { void refreshHomePreview(false); });
+homeUrlEl.addEventListener("input", () => {
+  window.clearTimeout(homePreviewTimer);
+  void refreshHomePreview(false);
+  // Typed (not pasted) YouTube links still deserve a real title: fetch
+  // once typing pauses, never per keystroke.
+  const url = homeUrlEl.value.trim();
+  if (/youtube\.com\/watch|youtu\.be\//i.test(url)) {
+    homePreviewTimer = window.setTimeout(() => { void refreshHomePreview(true); }, 800);
+  }
+});
+homeUrlEl.addEventListener("paste", () => {
+  // The paste event fires before the value updates, so fetch on the
+  // next tick. (Keyboard paste used to show only the "watch" fallback
+  // until blur, because only the change event fetched metadata.)
+  window.setTimeout(() => { void refreshHomePreview(true); }, 0);
+});
 homeUrlEl.addEventListener("change", () => { void refreshHomePreview(true); });
 homeUrlEl.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -689,6 +864,22 @@ document.getElementById("home-download").addEventListener("click", async () => {
     homeUrlEl.focus();
     return;
   }
+  // A YouTube link must never go through plain HTTP download (that
+  // would fetch the watch page itself): route it to the YouTube card
+  // and stop there, so Video/Audio and quality are picked before its
+  // Download (which still does the fresh yt-dlp tool check). The
+  // preview's metadata rides
+  // along when the preview fetched it; otherwise the card proceeds
+  // without it and the manager resolves the title.
+  if (/youtube\.com\/watch|youtu\.be\//i.test(url)) {
+    ytUrlEl.value = url;
+    ytInfo = homeYtInfo;
+    openYtCard();
+    homeUrlEl.value = "";
+    homePreviewEl.classList.add("hidden");
+    homeStatusEl.textContent = "";
+    return;
+  }
   homeStatusEl.textContent = "";
   urlEl.value = url;
   await submitDownload();
@@ -707,10 +898,25 @@ document.getElementById("home-new-task").addEventListener("click", () => {
   showDownloadsView();
   document.getElementById("new-task").click();
 });
+// Empty-state action (redesign): the empty Downloads view now offers
+// its own New Task button instead of only pointing at the top bar.
+document.getElementById("empty-new-task").addEventListener("click", () => {
+  document.getElementById("new-task").click();
+});
 document.getElementById("home-yt").addEventListener("click", openYtCard);
 document.getElementById("home-grab").addEventListener("click", () => {
   showDownloadsView();
   document.getElementById("grab-task").click();
+});
+// Home shortcut chips (Behance pattern): jump to the app's REAL
+// sections only — same handlers as the Dashboard quick actions.
+document.getElementById("home-chip-yt").addEventListener("click", openYtCard);
+document.getElementById("home-chip-grab").addEventListener("click", () => {
+  showDownloadsView();
+  document.getElementById("grab-task").click();
+});
+document.getElementById("home-chip-import").addEventListener("click", () => {
+  document.getElementById("import-txt").click();
 });
 searchEl.addEventListener("input", () => {
   searchQuery = searchEl.value.trim().toLowerCase();
@@ -719,7 +925,23 @@ searchEl.addEventListener("input", () => {
 document.getElementById("view-toggle").addEventListener("click", () => {
   gridView = !gridView;
   jobsEl.classList.toggle("grid", gridView);
+  // Download Manager Pro: the table header row only exists in list
+  // mode; grid mode keeps the old stacked cards.
+  viewDownloadsEl.classList.toggle("grid-view", gridView);
   refresh();
+});
+// Download Manager Pro: toolbar actions reuse existing controls only.
+document.getElementById("pro-add-url").addEventListener("click", () => {
+  document.getElementById("new-task").click();
+});
+document.getElementById("pro-resume-all").addEventListener("click", () => {
+  document.getElementById("resume-all").click();
+});
+document.getElementById("pro-pause-all").addEventListener("click", () => {
+  document.getElementById("pause-all").click();
+});
+document.getElementById("pro-open-folder").addEventListener("click", () => {
+  window.dm.openDownloadsFolder();
 });
 const addCard = document.getElementById("add-card");
 // 0.7.1 simplification: "Advanced options" sections are collapsed by default
@@ -743,6 +965,22 @@ function wireAdvancedToggle(buttonId, sectionId) {
   };
 }
 const collapseAddAdvanced = wireAdvancedToggle("add-advanced-toggle", "add-advanced");
+/* New Task card helpers (premium redesign): Paste fills the URL
+ * from the clipboard without submitting — the user still presses
+ * Download, so a stray clipboard never starts a job on its own. */
+document.getElementById("url-paste")?.addEventListener("click", async () => {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      urlEl.value = text.trim();
+      urlEl.focus();
+    }
+  } catch { /* clipboard read needs permission; Ctrl+V still works */ }
+});
+document.getElementById("add-dest-settings")?.addEventListener("click", () => {
+  openSettings();
+  document.getElementById("downloads-section")?.scrollIntoView({ block: "start" });
+});
 document.getElementById("new-task").addEventListener("click", () => {
   showDownloadsView();
   collapseAddAdvanced();
@@ -782,7 +1020,7 @@ function escapeHtml(s) {
 // Speed graph (feature 13): thin polyline of aggregate download speed.
 const speedSamples = [];
 function drawSpeedGraph() {
-  const canvas = document.getElementById("speed-graph");
+  const canvas = speedGraphEl;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
@@ -858,7 +1096,7 @@ async function refreshQueues() {
     btn.className = "nav-item" + (filterKind === "queue" && filterValue === queue.id ? " active" : "");
     btn.dataset.kind = "queue";
     btn.dataset.value = queue.id;
-    btn.innerHTML = `<span class="nav-icon">▤</span> ${escapeHtml(queue.name)}${queue.speedLimitBytesPerSec ? ` <span class="queue-limit">${formatBytes(queue.speedLimitBytesPerSec)}/s</span>` : ""}`;
+    btn.innerHTML = `<span class="nav-icon">▤</span> ${escapeHtml(queue.name)} <span class="queue-count" data-queue-count="${escapeHtml(queue.id)}"></span>${queue.speedLimitBytesPerSec ? ` <span class="queue-limit">${formatBytes(queue.speedLimitBytesPerSec)}/s</span>` : ""}`;
     if (queue.id !== "main") {
       const del = document.createElement("span");
       del.className = "queue-del";
@@ -875,6 +1113,48 @@ async function refreshQueues() {
         refresh();
       });
       btn.appendChild(del);
+    }
+    // 0.8.0: queue start/stop for the ACTIVE queue only. These are
+    // small spans (not nested buttons, which are invalid HTML) and
+    // they pause/resume the queue's jobs — there is no separate
+    // paused-queue state in the pump, and the tooltip says so.
+    if (filterKind === "queue" && filterValue === queue.id) {
+      const stop = document.createElement("span");
+      stop.className = "queue-ctl";
+      stop.textContent = "⏸";
+      stop.title = "Stop queue: pause all jobs in this queue";
+      stop.setAttribute("role", "button");
+      stop.tabIndex = 0;
+      stop.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const n = await window.dm.pauseQueue(queue.id);
+        showToast(n ? `Paused ${n} job(s) in ${queue.name}` : `No active jobs in ${queue.name}`);
+        window.dm.list().then(renderJobs);
+      });
+      const start = document.createElement("span");
+      start.className = "queue-ctl";
+      start.textContent = "▶";
+      start.title = "Start queue: resume all paused jobs in this queue";
+      start.setAttribute("role", "button");
+      start.tabIndex = 0;
+      start.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const n = await window.dm.resumeQueue(queue.id);
+        showToast(n ? `Resumed ${n} job(s) in ${queue.name}` : `No paused jobs in ${queue.name}`);
+        window.dm.list().then(renderJobs);
+      });
+      // Keyboard parity for the span controls (manual accessibility
+      // check: every new control must be operable without a mouse).
+      for (const ctl of [stop, start]) {
+        ctl.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            ctl.click();
+          }
+        });
+      }
+      btn.appendChild(stop);
+      btn.appendChild(start);
     }
     btn.addEventListener("click", () => {
       document.querySelectorAll("#filter-chips .chip").forEach((b) => b.classList.remove("active"));
@@ -912,6 +1192,11 @@ function actionsFor(job) {
   if (job.status === "paused") {
     parts.push(`<button class="icon-btn" data-action="resume" data-id="${job.id}" title="Resume">▶</button>`);
   }
+  // 0.8.0: failed jobs had no button at all — retry re-queues them
+  // through the same resume path that now restarts failed jobs.
+  if (job.status === "failed") {
+    parts.push(`<button class="icon-btn" data-action="retry" data-id="${job.id}" title="Retry">↻</button>`);
+  }
   // 0.7.0: a finished torrent still seeding gets an explicit stop.
   if (job.seeding) {
     parts.push(`<button class="icon-btn" data-action="stop-seeding" data-id="${job.id}" title="Stop seeding">⏹</button>`);
@@ -941,6 +1226,7 @@ function createCard(job) {
       <div class="job-meta-line">
         <span class="pct"></span>
         <span class="sizes"></span>
+        <span class="downloaded"></span>
         <span class="speed"></span>
         <span class="eta"></span>
         <span class="job-date"></span>
@@ -964,6 +1250,7 @@ function createCard(job) {
     barFill: card.querySelector(".bar > div"),
     pct: card.querySelector(".pct"),
     sizes: card.querySelector(".sizes"),
+    downloaded: card.querySelector(".downloaded"),
     speed: card.querySelector(".speed"),
     eta: card.querySelector(".eta"),
     date: card.querySelector(".job-date"),
@@ -1061,8 +1348,13 @@ function updateCard(card, job) {
     el.barFill.style.width = width;
   }
   setText(el.pct, "pct", p && p.percent != null ? `${pct.toFixed(1)}%` : "0.0%", last);
+  // Download Manager Pro: the table splits the old "X / Y" sizes cell
+  // into a Size column (total) and a Downloaded column (so far).
   setText(el.sizes, "sizes", p
-    ? `${formatBytes(p.downloadedBytes)} / ${p.totalBytes != null ? formatBytes(p.totalBytes) : "?"}`
+    ? (p.totalBytes != null ? formatBytes(p.totalBytes) : "?")
+    : "—", last);
+  setText(el.downloaded, "downloaded", p
+    ? formatBytes(p.downloadedBytes)
     : "Waiting…", last);
   setText(el.speed, "speed", p ? `${formatBytes(Math.round(p.speedBytesPerSec))}/s` : "—", last);
   setText(el.eta, "eta", p ? `${formatEta(p.etaSeconds)} left` : "--:--", last);
@@ -1169,13 +1461,134 @@ function updateBottomBar(jobs, totalSpeed) {
   const text = `${status}|${percent}|${speed}`;
   if (text === lastBottomText) return;
   lastBottomText = text;
-  const statusEl = document.getElementById("bottom-status");
-  const percentEl = document.getElementById("bottom-percent");
-  const speedEl = document.getElementById("bottom-speed");
-  if (statusEl) statusEl.textContent = status;
-  if (percentEl) percentEl.textContent = percent;
-  if (speedEl) speedEl.textContent = speed;
+  if (bottomStatusEl) bottomStatusEl.textContent = status;
+  if (bottomPercentEl) bottomPercentEl.textContent = percent;
+  if (bottomSpeedEl) bottomSpeedEl.textContent = speed;
 }
+
+/* ---- Dashboard overview (premium redesign) ----
+ * Reads ONLY the live job list renderJobs already owns: counts by
+ * status, aggregate speed of downloading jobs, overall progress and
+ * remaining time from real downloaded/total bytes. Anything unknown
+ * shows "—", never an invented figure. Recent rows navigate to
+ * Downloads; they do not duplicate job controls. */
+const dashEls = {
+  total: document.getElementById("dash-total"),
+  active: document.getElementById("dash-active"),
+  completed: document.getElementById("dash-completed"),
+  failed: document.getElementById("dash-failed"),
+  speed: document.getElementById("dash-speed"),
+  eta: document.getElementById("dash-eta"),
+  overallFill: document.getElementById("dash-overall-fill"),
+  overallText: document.getElementById("dash-overall-text"),
+  ringFill: document.getElementById("dash-ring-fill"),
+  ringText: document.getElementById("dash-ring-text"),
+  attention: document.getElementById("dash-attention"),
+  attentionText: document.getElementById("dash-attention-text"),
+  viewFailed: document.getElementById("dash-view-failed"),
+  recent: document.getElementById("dash-recent"),
+};
+const DASH_PILL = {
+  downloading: "Downloading", queued: "Queued", paused: "Paused",
+  completed: "Completed", failed: "Failed", retrying: "Retrying",
+};
+let lastDashRecentKey = "";
+function renderDashboard(jobs) {
+  if (!dashEls.total) return;
+  let active = 0;
+  let completed = 0;
+  let failed = 0;
+  let totalSpeed = 0;
+  let down = 0;
+  let total = 0;
+  let known = false;
+  for (const job of jobs) {
+    if (job.status === "downloading" || job.status === "queued" || job.status === "retrying") active++;
+    if (job.status === "completed") completed++;
+    if (job.status === "failed") failed++;
+    const p = job.progress;
+    if (job.status === "downloading" && p) totalSpeed += p.speedBytesPerSec || 0;
+    if (p) {
+      down += p.downloadedBytes;
+      if (p.totalBytes != null) {
+        total += p.totalBytes;
+        known = true;
+      }
+    }
+  }
+  dashEls.total.textContent = String(jobs.length);
+  dashEls.active.textContent = String(active);
+  dashEls.completed.textContent = String(completed);
+  dashEls.failed.textContent = String(failed);
+  dashEls.speed.textContent = `${formatBytes(Math.round(totalSpeed))}/s`;
+  const remaining = total - down;
+  dashEls.eta.textContent = (known && total > 0 && totalSpeed > 0)
+    ? formatEta(remaining / totalSpeed)
+    : "—";
+  const pct = known && total > 0 ? Math.min(100, (down / total) * 100) : 0;
+  dashEls.overallFill.style.width = `${pct}%`;
+  dashEls.overallText.textContent = known && total > 0
+    ? `${pct.toFixed(1)}% · ${formatBytes(down)} / ${formatBytes(total)}`
+    : (jobs.length ? "Size unknown for some downloads" : "No downloads yet");
+  // Progress ring mirrors the track above exactly: same pct, same
+  // renderDashboard call, no second data source. "—" when no job
+  // carries a known total size.
+  const ringCirc = 2 * Math.PI * 20;
+  if (dashEls.ringFill) {
+    dashEls.ringFill.style.strokeDasharray = `${ringCirc}`;
+    dashEls.ringFill.style.strokeDashoffset = known && total > 0
+      ? `${ringCirc * (1 - pct / 100)}`
+      : `${ringCirc}`;
+  }
+  if (dashEls.ringText) {
+    dashEls.ringText.textContent = known && total > 0 ? `${pct.toFixed(0)}%` : "—";
+  }
+  if (failed > 0) {
+    dashEls.attentionText.textContent = `${failed} download${failed > 1 ? "s" : ""} failed — retry them from Downloads.`;
+    dashEls.viewFailed.classList.remove("hidden");
+    dashEls.attention.classList.add("has-failed");
+  } else {
+    dashEls.attentionText.textContent = jobs.length
+      ? "All downloads healthy — nothing failed."
+      : "No downloads yet — start with New Task above.";
+    dashEls.viewFailed.classList.add("hidden");
+    dashEls.attention.classList.remove("has-failed");
+  }
+  // Recent list: change-only rebuild, keyed on id + status, so a
+  // progress tick never rewrites the rows.
+  const recent = [...jobs]
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .slice(0, 5);
+  const key = recent.map((job) => `${job.id}:${job.status}`).join("|");
+  if (key !== lastDashRecentKey) {
+    lastDashRecentKey = key;
+    dashEls.recent.innerHTML = recent.length
+      ? recent.map((job) => {
+        const p = job.progress;
+        const pctText = p && p.percent != null ? `${(p.percent * 100).toFixed(1)}%` : "—";
+        return `<button class="dash-recent-row" type="button" title="Open Downloads"><span class="dash-recent-name">${escapeHtml(job.filename)}</span><span class="pill ${job.status}">${DASH_PILL[job.status] ?? job.status}</span><span class="dash-recent-pct mono">${pctText}</span></button>`;
+      }).join("")
+      : `<p class="setting-hint">Nothing here yet — your newest downloads will appear here.</p>`;
+  }
+}
+document.getElementById("dash-new-task")?.addEventListener("click", () => {
+  document.getElementById("new-task").click();
+});
+document.getElementById("dash-yt")?.addEventListener("click", () => openYtCard());
+document.getElementById("dash-grab")?.addEventListener("click", () => {
+  showDownloadsView();
+  document.getElementById("grab-task").click();
+});
+document.getElementById("dash-import")?.addEventListener("click", () => {
+  document.getElementById("import-txt").click();
+});
+document.getElementById("dash-view-failed")?.addEventListener("click", () => {
+  setStatusFilter("failed");
+  showDownloadsView();
+});
+dashEls.recent?.addEventListener("click", (event) => {
+  if (event.target.closest(".dash-recent-row")) showDownloadsView();
+});
 
 const previousStatus = new Map();
 let lastGraphAt = 0;
@@ -1212,11 +1625,11 @@ function renderJobs(jobs) {
     if (job.status === "downloading" && job.progress) totalSpeed += job.progress.speedBytesPerSec || 0;
   }
   for (const [key, value] of Object.entries(counts)) {
-    const el = document.getElementById(`count-${key}`);
+    const el = countEls[key];
     if (el) el.textContent = String(value);
   }
-  document.getElementById("stat-speed").textContent = `${formatBytes(Math.round(totalSpeed))}/s`;
-  document.getElementById("stat-active").textContent = String(counts.downloading + counts.queued + retrying);
+  statSpeedEl.textContent = `${formatBytes(Math.round(totalSpeed))}/s`;
+  statActiveEl.textContent = String(counts.downloading + counts.queued + retrying);
   // Speed graph (feature 13): last 60 aggregate samples; repaint the
   // canvas at most twice a second instead of on every refresh.
   speedSamples.push(totalSpeed);
@@ -1226,15 +1639,16 @@ function renderJobs(jobs) {
     lastGraphAt = now;
     drawSpeedGraph();
   }
-  document.getElementById("stat-done").textContent = String(counts.completed);
+  statDoneEl.textContent = String(counts.completed);
   updateBottomBar(jobs, totalSpeed);
+  renderDashboard(jobs);
 
   listTitleEl.textContent = filterTitle();
   listCountEl.textContent = visible.length ? `${visible.length} shown` : "";
 
   emptyEl.style.display = visible.length ? "none" : "block";
   jobsEl.style.display = visible.length ? "" : "none";
-  document.getElementById("list-header").classList.toggle("hidden", !visible.length || gridView);
+  listHeaderEl.classList.toggle("hidden", !visible.length || gridView);
   // 0.7.0 empty states: a filtered view says what is empty, and the
   // button always offers a way forward.
   if (!visible.length) {
@@ -1266,6 +1680,22 @@ function renderJobs(jobs) {
     }
     updateCard(card, job);
   }
+  syncQueueCounts();
+}
+
+/* Queue job counts in the sidebar: text-only update of the badges
+ * refreshQueues renders, so counts never rebuild the nav (which
+ * would drop the queue start/stop listeners). */
+function syncQueueCounts() {
+  const counts = new Map();
+  for (const job of allJobs) {
+    const key = job.queueId || "main";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  document.querySelectorAll("#queue-nav [data-queue-count]").forEach((el) => {
+    const n = counts.get(el.dataset.queueCount) || 0;
+    el.textContent = n ? String(n) : "";
+  });
 }
 
 function refresh() {
@@ -1279,6 +1709,7 @@ jobsEl.addEventListener("click", async (event) => {
   const action = button.dataset.action;
   if (action === "pause") await window.dm.pause(id);
   if (action === "resume") await window.dm.resume(id);
+  if (action === "retry") await window.dm.resume(id);
   if (action === "cancel") await window.dm.cancel(id);
   if (action === "details") await window.dm.openDetails(id);
   if (action === "stop-seeding") await window.dm.stopSeeding(id);
@@ -1301,6 +1732,17 @@ async function submitDownload() {
   if (!url) {
     errorEl.textContent = "Enter a URL first.";
     urlEl.focus();
+    return;
+  }
+  // Same rule as Home and drag & drop: a YouTube link never goes
+  // through plain HTTP (that would fetch the watch page). Send it to
+  // the YouTube card, where Video/Audio and quality are picked first.
+  if (/youtube\.com\/watch|youtu\.be\//i.test(url)) {
+    ytUrlEl.value = url;
+    ytInfo = null;
+    openYtCard();
+    addCard.classList.add("hidden");
+    urlEl.value = "";
     return;
   }
   try {
@@ -1422,12 +1864,18 @@ jobsEl.addEventListener("contextmenu", (event) => {
     ${toggle}
     <button data-ctx="details">ℹ Properties</button>
     <hr class="ctx-sep" />
+    <button data-ctx="copy-link">🔗 Copy link</button>
+    <button data-ctx="copy-path" ${job.destination ? "" : "disabled"}>📄 Copy file path</button>
+    ${canOpen ? `<button data-ctx="delete-file" class="danger">🗑 Delete file too</button>` : ""}
+    <hr class="ctx-sep" />
     ${queueButtons}
     <hr class="ctx-sep" />
     <button data-ctx="delete" class="danger">🗑 Delete</button>`;
   ctxMenu.classList.remove("hidden");
   const width = 230;
-  const height = 260;
+  // 0.8.0: the menu grew by three rows (copy link/path, delete file
+  // too), so the viewport clamp height grows with it.
+  const height = 340;
   ctxMenu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - width - 10))}px`;
   ctxMenu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - height - 10))}px`;
 });
@@ -1455,6 +1903,22 @@ ctxMenu.addEventListener("click", async (event) => {
   if (action === "resume") await window.dm.resume(id);
   if (action === "delete") await window.dm.cancel(id);
   if (action === "details") await window.dm.openDetails(id);
+  // 0.8.0: clipboard copies use navigator.clipboard with a textarea
+  // fallback (older Electron builds can reject the async API). Copy
+  // path is only offered when the job has a destination. Delete file
+  // too is the ONLY path that removes a file from disk — plain Delete
+  // above stays list-only, and its confirm text must stay honest.
+  if (action === "copy-link" || action === "copy-path") {
+    const job = allJobs.find((candidate) => candidate.id === id);
+    const text = action === "copy-link" ? job?.url : job?.destination;
+    if (text) await copyText(text);
+  }
+  if (action === "delete-file") {
+    const job = allJobs.find((candidate) => candidate.id === id);
+    if (job && confirm(`Delete "${job.filename}" and its downloaded file from disk? This cannot be undone.`)) {
+      await window.dm.deleteWithFile(id);
+    }
+  }
   window.dm.list().then(renderJobs);
 });
 
@@ -1465,10 +1929,18 @@ async function refreshDisk() {
     if (!disk || !disk.totalBytes) throw new Error("no disk info");
     const used = Math.round(100 * (1 - disk.freeBytes / disk.totalBytes));
     document.getElementById("disk-bar-fill").style.width = `${used}%`;
-    document.getElementById("disk-text").textContent =
-      `${formatBytes(disk.freeBytes)} free of ${formatBytes(disk.totalBytes)} · ${used}% used`;
+    // Two deliberate lines: one long string used to wrap mid-phrase and
+    // leave the "·" dangling at the end of line one.
+    document.getElementById("disk-free").textContent =
+      `${formatBytes(disk.freeBytes)} free of ${formatBytes(disk.totalBytes)}`;
+    document.getElementById("disk-used").textContent = `${used}% used`;
+    const dashDisk = document.getElementById("dash-disk");
+    if (dashDisk) dashDisk.textContent = `${formatBytes(disk.freeBytes)} free of ${formatBytes(disk.totalBytes)} · ${used}% used`;
   } catch {
-    document.getElementById("disk-text").textContent = "Disk space unavailable";
+    document.getElementById("disk-free").textContent = "Disk space unavailable";
+    document.getElementById("disk-used").textContent = "";
+    const dashDisk = document.getElementById("dash-disk");
+    if (dashDisk) dashDisk.textContent = "Disk space unavailable";
   }
 }
 refreshDisk();
@@ -1520,6 +1992,22 @@ document.getElementById("yt-cancel").addEventListener("click", () => {
   setYtStatus("");
   ytCard.classList.add("hidden");
 });
+// YouTube quality / frame-rate pill rows (Behance pattern: explicit
+// selectable rows instead of hidden dropdowns). One active pill per
+// row; the submit path reads the active pill, same values as before.
+function ytPillInit(rowId) {
+  document.getElementById(rowId)?.addEventListener("click", (event) => {
+    const btn = event.target.closest("button");
+    if (!btn) return;
+    document.querySelectorAll(`#${rowId} button`).forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  });
+}
+ytPillInit("yt-quality-pills");
+ytPillInit("yt-fps-pills");
 document.getElementById("yt-kind-segmented").addEventListener("click", (event) => {
   const btn = event.target.closest("button[data-yt-kind]");
   if (!btn) return;
@@ -1528,6 +2016,7 @@ document.getElementById("yt-kind-segmented").addEventListener("click", (event) =
     b.classList.toggle("active", b === btn));
   const isVideo = ytKind === "video";
   document.getElementById("yt-video-quality-field").classList.toggle("hidden", !isVideo);
+  document.getElementById("yt-fps-field").classList.toggle("hidden", !isVideo);
   document.getElementById("yt-container-field").classList.toggle("hidden", !isVideo);
   document.getElementById("yt-audio-format-field").classList.toggle("hidden", isVideo);
   document.getElementById("yt-audio-quality-field").classList.toggle("hidden", isVideo);
@@ -1550,6 +2039,7 @@ document.getElementById("yt-fetch").addEventListener("click", async () => {
     if (ytInfo.durationSeconds != null) parts.push(formatEta(ytInfo.durationSeconds));
     if (ytInfo.isPlaylist) parts.push(`Playlist · ${ytInfo.playlistCount ?? "?"} videos`);
     if (ytInfo.heights.length) parts.push(`Up to ${ytInfo.heights[0]}p`);
+    if (ytInfo.maxFps) parts.push(`${ytInfo.maxFps} fps available`);
     document.getElementById("yt-meta").textContent = parts.join(" · ");
     ytInfoEl.classList.remove("hidden");
     setYtStatus("");
@@ -1597,7 +2087,8 @@ document.getElementById("yt-download").addEventListener("click", async () => {
   const playlistEnd = Number(document.getElementById("yt-pl-end").value) || undefined;
   const options = {
     kind: ytKind,
-    quality: document.getElementById("yt-quality").value,
+    quality: document.querySelector("#yt-quality-pills button.active")?.dataset.ytQuality ?? "best",
+    fps: document.querySelector("#yt-fps-pills button.active")?.dataset.ytFps ?? "best",
     container: document.getElementById("yt-container").value,
     audioFormat: document.getElementById("yt-audio-format").value,
     audioQuality: document.getElementById("yt-audio-quality").value,
@@ -1726,6 +2217,7 @@ window.dm.onJobs(renderJobs);
 window.dm.getSettings().then((got) => {
   if (got) engineSettings = got;
   applySettings();
+  updateAddDest();
 }).catch(() => undefined);
 window.dm.getInfo().then((info) => {
   if (info) document.getElementById("about-version").textContent = `v${info.version}`;
@@ -1737,12 +2229,12 @@ function updateBulkBar(visible) {
   // Drop selections for jobs that no longer exist.
   const live = new Set(allJobs.map((job) => job.id));
   for (const id of [...selectedIds]) if (!live.has(id)) selectedIds.delete(id);
-  const bar = document.getElementById("bulk-bar");
-  const count = document.getElementById("bulk-count");
+  const bar = bulkBarEl;
+  const count = bulkCountEl;
   if (!bar || !count) return;
   bar.classList.toggle("hidden", selectedIds.size === 0);
   count.textContent = selectedIds.size ? `${selectedIds.size} selected` : "";
-  const selectAll = document.getElementById("select-all");
+  const selectAll = selectAllEl;
   if (selectAll) {
     selectAll.checked = visible.length > 0 && visible.every((job) => selectedIds.has(job.id));
   }
@@ -1777,10 +2269,53 @@ document.getElementById("sort-select").addEventListener("change", (event) => {
   renderJobs(allJobs);
 });
 document.getElementById("widget-btn").addEventListener("click", () => window.dm.toggleWidget());
-document.getElementById("empty-add").addEventListener("click", () => {
-  showDownloadsView();
-  addCard.classList.remove("hidden");
-  urlEl.focus();
+
+/* ---- Downloads "⋯ Actions" menu (0.7.6 simplification) ----
+ * The old separate action-toolbar row (Resume/Pause/Clear/Speed
+ * Monitor/Options) plus the stats row made the Downloads view feel
+ * crowded. The bulk actions now live behind one ⋯ button in the
+ * chips row, and the stats row (speed, graph, counts) is hidden by
+ * default — the bottom bar already carries speed and counts, and the
+ * graph can be brought back from this same menu. */
+const actionsMenu = document.getElementById("actions-menu");
+const actionsMenuBtn = document.getElementById("actions-menu-btn");
+function closeActionsMenu() { actionsMenu.classList.add("hidden"); }
+actionsMenuBtn.addEventListener("click", (event) => {
+  event.stopPropagation();
+  actionsMenu.classList.toggle("hidden");
+});
+actionsMenu.addEventListener("click", (event) => {
+  if (event.target.closest("button")) closeActionsMenu();
+});
+document.addEventListener("click", (event) => {
+  if (!actionsMenu.classList.contains("hidden") && !actionsMenu.contains(event.target) && event.target !== actionsMenuBtn) closeActionsMenu();
+});
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeActionsMenu(); });
+document.getElementById("graph-toggle").addEventListener("click", () => {
+  const stats = document.getElementById("download-stats");
+  const collapsed = stats.classList.toggle("collapsed");
+  document.getElementById("graph-toggle").textContent = collapsed ? "📈 Show speed graph" : "📈 Hide speed graph";
+});
+// 0.8.0: .txt import, CSV export, retry-all-failed (all in the ⋯ menu).
+document.getElementById("import-txt").addEventListener("click", async () => {
+  const result = await window.dm.importUrls();
+  if (!result) return;
+  if (result.added === 0 && result.skipped === 0 && result.failed === 0) {
+    showToast("Import cancelled");
+  } else {
+    showToast(`Imported ${result.added} link(s), ${result.skipped} skipped, ${result.failed} failed. YouTube links added as Video / best quality.`);
+  }
+  window.dm.list().then(renderJobs);
+});
+document.getElementById("export-csv").addEventListener("click", async () => {
+  const ok = await window.dm.exportCsv();
+  showToast(ok ? "Downloads exported to CSV" : "CSV export cancelled or failed");
+});
+document.getElementById("retry-all-failed").addEventListener("click", async () => {
+  const failed = allJobs.filter((job) => job.status === "failed");
+  for (const job of failed) await window.dm.resume(job.id);
+  showToast(failed.length ? `Retrying ${failed.length} failed download(s)` : "No failed downloads to retry");
+  window.dm.list().then(renderJobs);
 });
 
 // Keyboard shortcuts (see the list in Settings). Typing in a field

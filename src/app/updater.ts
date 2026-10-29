@@ -12,6 +12,10 @@
  *
  * No feed URL is baked in: set DM_UPDATE_URL, or pass one explicitly.
  * Without a URL, checkForUpdates() returns { available: false }.
+ *
+ * The feed's download URL must be https: — the dialog opens it with
+ * shell.openExternal after a user click, so a non-https URL (http, or
+ * worse file:) from a compromised or mistyped feed must never reach it.
  */
 
 export interface UpdateFeed {
@@ -80,6 +84,27 @@ export async function checkForUpdates(
         latestVersion: null,
         url: null,
         error: "Update feed is missing version or url",
+      };
+    }
+    let feedDownloadUrl: URL;
+    try {
+      feedDownloadUrl = new URL(feed.url);
+    } catch {
+      return {
+        available: false,
+        currentVersion,
+        latestVersion: null,
+        url: null,
+        error: "Update feed url is not a valid URL",
+      };
+    }
+    if (feedDownloadUrl.protocol !== "https:") {
+      return {
+        available: false,
+        currentVersion,
+        latestVersion: null,
+        url: null,
+        error: "Update feed url must use https",
       };
     }
     const available = compareVersions(feed.version, currentVersion) > 0;

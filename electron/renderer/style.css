@@ -24,9 +24,9 @@
   --accent-soft-dark: #243d1e;
   --accent-text-dark: #a3e635;
   --sidebar: #ffffff;
-  --blue: #2d96f6;
-  --yellow: #ffc225;
-  --purple: #9542d6;
+  --blue: #3a8fce;
+  --yellow: #dfb13a;
+  --purple: #8b66b5;
   --red: #e5484d;
   --shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
   --radius: 18px;
@@ -81,6 +81,14 @@ body {
 }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
+/* Visible keyboard focus (WCAG + audit P1): every button gets an
+   accent outline; selects/textarea get the input-style glow. Only
+   :focus-visible, so mouse clicks stay ring-free. Base rules already
+   suppress the default outline on form controls, so these are the
+   replacement indicators, not an addition on top of one. */
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+select:focus-visible, textarea:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .error { color: var(--red); font-size: 13px; }
 
@@ -138,7 +146,11 @@ button { cursor: pointer; }
 .gear-btn:hover { background: var(--panel-2); color: var(--text); }
 .foot-note { font-size: 12px; line-height: 1.55; color: var(--muted); margin: 0; padding: 0 8px; }
 
-.main { flex: 1; min-width: 0; padding: 22px 30px 84px; }
+.main { flex: 1; min-width: 0; padding: 24px 32px 84px; }
+/* Wide-screen container (audit P1): topbar and Downloads view stop at
+   1280px and centre, so job cards don't stretch edge-to-edge. Home
+   keeps its own 720px centred hero; the fixed bottom bar is untouched. */
+.topbar, #view-downloads { max-width: 1280px; margin-left: auto; margin-right: auto; }
 
 /* Persistent bottom aggregate bar (0.7.2): fixed to the main area,
  * clear of the 212px sidebar, with room reserved above via .main padding. */
@@ -173,12 +185,16 @@ button { cursor: pointer; }
 /* ---- New Download Task card ---- */
 .add-card {
   background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow);
-  padding: 22px 24px; margin-bottom: 22px;
+  padding: 22px 24px; margin-bottom: 20px;
 }
 .add-card.hidden { display: none; }
 .add-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.add-head h1 { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: -0.01em; }
-.field-label { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); font-weight: 600; margin-bottom: 6px; }
+.add-head h2 { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: -0.01em; }
+/* Headings keep balanced line breaks (no widows). */
+.add-head h2, .toolbar h1, .modal-head h2, .empty h3, .detail-card h2 { text-wrap: balance; }
+/* Field labels are sentence case (audit P2); section headers
+   (.settings-section, .yt-subhead, .queues-head, .disk-card h4) stay uppercase. */
+.field-label { display: block; font-size: 13px; color: var(--text-2); font-weight: 600; margin-bottom: 6px; }
 #url {
   width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
   background: var(--bg); color: var(--text); outline: none; font-size: 14px;
@@ -216,26 +232,35 @@ button { cursor: pointer; }
 .download-btn:hover { filter: brightness(1.06); }
 
 /* ---- Stats + list head ---- */
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0 2px 12px; flex-wrap: wrap; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin: 0 2px 20px; flex-wrap: wrap; }
+/* Downloads view is a column, with the list title first and the
+   filter row second — the heading reads before the filters, not
+   after the forms. DOM order is untouched, so no JS changes. */
+#view-downloads { display: flex; flex-direction: column; }
+#view-downloads > * { min-width: 0; }
+#view-downloads .toolbar { order: -2; }
+#view-downloads .filter-chips { order: -1; }
 .stats { display: flex; gap: 26px; }
 .stat { display: flex; flex-direction: column; }
 .stat-value { font-size: 17px; font-weight: 700; }
 .stat-label { font-size: 12px; color: var(--text-2); }
-.toolbar h2 { margin: 0; font-family: var(--display); font-size: 16px; }
+.toolbar h1 { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: -0.01em; }
 .list-count { font-size: 13px; color: var(--text-2); }
 
 /* ---- Download rows: Figma-style table columns ---- */
-.job-list { display: flex; flex-direction: column; gap: 10px; }
+.job-list { display: flex; flex-direction: column; gap: 16px; }
 .job-list.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-/* Cards need no column labels. */
+/* Cards need no column labels in grid mode; in list mode the Pro
+   block at the end of this file turns each card into a table row
+   whose columns match .list-header. */
 .list-header { display: none; }
 /* OmniGet-style card: tile + main column (title, meta line, progress,
-   stage chips), actions on the right. The DOM changed in 0.7.4, so the
-   old 8-column table grid is gone; updateCard still finds every field
-   by the same class names. */
+   stage chips), actions on the right. In list mode the Pro block at
+   the end of this file lays the same DOM out as a table row;
+   updateCard still finds every field by the same class names. */
 .job-card {
-  background: var(--panel); border-radius: 16px; box-shadow: var(--shadow);
-  padding: 15px 18px; display: flex; gap: 14px; align-items: flex-start;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+  padding: 16px 20px; display: flex; gap: 14px; align-items: flex-start;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .job-card .job-select { align-self: center; }
@@ -252,13 +277,13 @@ button { cursor: pointer; }
   font-size: 10px; letter-spacing: 0.06em; text-align: center; padding: 2px 0;
 }
 .tile.Video { background: var(--blue); }
-.tile.Audio { background: #f43f5e; }
+.tile.Audio { background: #d6536a; }
 .tile.Documents { background: var(--muted); }
 .tile.Compressed { background: var(--yellow); color: #333; }
 .tile.Programs { background: var(--purple); }
 .tile.General { background: var(--text-2); }
-.job-name { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bar { height: 5px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 9px; }
+.job-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 10px; }
 .bar > div { height: 100%; background: var(--accent-grad, var(--accent)); border-radius: 999px; transition: width 0.35s ease; }
 .bar.paused > div { background: var(--yellow); }
 .bar.failed > div { background: var(--red); }
@@ -271,12 +296,13 @@ button { cursor: pointer; }
 }
 @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 .job-main { flex: 1; min-width: 0; }
-.job-top { display: flex; align-items: center; gap: 12px; }
+.job-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .job-top .job-name { flex: 1; min-width: 0; }
 .job-top .job-actions { flex-shrink: 0; }
 .job-top .pill { margin-top: 0; }
 .job-meta-line { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; font-size: 12px; color: var(--text-2); margin-top: 4px; }
-.job-meta-line .pct { font-weight: 700; font-size: 14px; color: var(--text); }
+.job-meta-line .pct { font-weight: 700; font-size: 16px; color: var(--text); }
+.job-meta-line .speed { font-weight: 700; color: var(--text); }
 .job-meta-line .job-date { margin-left: auto; }
 .job-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .icon-btn {
@@ -303,6 +329,8 @@ button { cursor: pointer; }
 .chunk { flex: 1; height: 4px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
 .chunk > div { height: 100%; background: var(--blue); transition: width 0.35s ease; }
 .job-error { font-size: 12px; color: var(--red); margin-top: 6px; }
+/* An empty error line must not leave a blank gap under the card. */
+.job-error:empty { display: none; }
 
 /* ---- Empty state ---- */
 .empty {
@@ -314,7 +342,7 @@ button { cursor: pointer; }
   display: grid; place-items: center; font-size: 30px; color: #fff; background: var(--accent-grad, var(--accent));
   box-shadow: 0 8px 20px var(--accent-glow);
 }
-.empty h3 { color: var(--text); margin: 0 0 6px; font-family: var(--display); font-size: 17px; }
+.empty h3 { color: var(--text); margin: 0 0 6px; font-family: var(--display); font-size: 20px; }
 .empty p { margin: 0; line-height: 1.6; font-size: 14px; }
 
 /* ---- Details dialog ---- */
@@ -364,6 +392,11 @@ body.hide-path .job-path { display: none; }
 .yt-checks input[type="checkbox"] { accent-color: var(--accent); }
 .yt-checks select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .yt-extras { margin-top: 16px; }
+/* YouTube Advanced subsection headings (audit P0 fix): same type style
+   as .settings-section (uppercase, tracked, muted) so the grouped
+   controls read as sections instead of one long wall. */
+.yt-subhead { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); margin: 18px 0 2px; }
+.yt-subhead:first-child { margin-top: 12px; }
 .small-number { width: 64px; padding: 7px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .yt-tools { font-size: 13px; color: var(--text-2); margin: 16px 0 0; }
 .yt-tools-btns { display: flex; gap: 8px; margin-top: 8px; }
@@ -415,7 +448,25 @@ body.hide-path .job-path { display: none; }
 .modal-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; }
 
 /* ---- Figma toolbar actions, context menu, disk card ---- */
-.action-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+/* ---- Downloads "⋯ Actions" menu (0.7.6 simplification) ---- */
+.actions-menu-wrap { position: relative; margin-left: auto; }
+.actions-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 70;
+  display: flex; flex-direction: column; gap: 4px; min-width: 210px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25); padding: 6px;
+}
+.actions-menu.hidden { display: none; }
+.actions-menu .tool-btn { border: none; border-radius: 8px; text-align: left; width: 100%; }
+
+/* Stats row is hidden by default (0.7.6): the bottom bar already
+   carries speed and counts; the graph comes back via the ⋯ menu. */
+.stats.collapsed { display: none; }
+
+/* The top-bar trio duplicates the Home hero actions: hide on Home. */
+body.on-home-view #yt-task,
+body.on-home-view #grab-task,
+body.on-home-view #new-task { display: none; }
 .tool-btn {
   background: var(--panel); border: 1px solid var(--border); color: var(--text);
   border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 600;
@@ -440,18 +491,44 @@ body.hide-path .job-path { display: none; }
 .disk-bar { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
 .disk-bar > div { height: 100%; background: var(--accent-grad, var(--accent)); transition: width 0.5s ease; }
 .disk-text { font-size: 12px; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
+.disk-text span { display: block; }
+
+/* View switching fades instead of snapping (0.7.5 smoothness). The
+   animation re-runs each time a view is unhidden; the reduce-effects
+   rule above already disables it for users who asked for no motion. */
+#view-home:not(.hidden), #view-downloads:not(.hidden) { animation: view-fade 0.18s ease; }
+@keyframes view-fade { from { opacity: 0; transform: translateY(4px); } }
 
 /* ---- Completion toast ---- */
 .toast {
-  position: fixed; right: 22px; bottom: 22px; z-index: 60;
+  position: fixed; right: 22px; bottom: 64px; z-index: 60;
   background: var(--panel); color: var(--text); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
   padding: 13px 18px; font-size: 14px; max-width: 360px; border-left: 4px solid var(--accent);
 }
 .toast.hidden { display: none; }
 
 @media (max-width: 820px) {
-  .sidebar { display: none; }
-  .main { padding: 16px; }
+  /* Narrow window (audit P0 fix): the sidebar becomes a compact
+     horizontal top bar — brand mark + view nav only — instead of
+     disappearing, so Home / Downloads / Settings / About stay
+     reachable. Queue controls, disk card and footer hide here. */
+  .app { flex-direction: column; }
+  .sidebar,
+  body.sidebar-collapsed .sidebar {
+    width: auto; height: auto; position: static;
+    flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 12px;
+  }
+  .sidebar .brand-text { display: none; }
+  .sidebar .nav { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .sidebar .nav-item,
+  body.sidebar-collapsed .nav-item { font-size: 13px; justify-content: flex-start; padding: 8px 12px; }
+  body.sidebar-collapsed .nav-item .count { display: inline-block; }
+  .sidebar .queues-head,
+  .sidebar #queue-nav,
+  .sidebar .queue-add,
+  .sidebar .sidebar-foot { display: none; }
+  .main { padding: 16px 16px 84px; }
 }
 
 /* ---- 0.6.6 features: queues, grabber, drop overlay, speed graph ---- */
@@ -581,19 +658,17 @@ body.hide-path .job-path { display: none; }
 [data-font-size="xl"] body { zoom: 1.3; }
 
 /* ---- 0.7.0 multi-select: checkbox column + bulk bar ---- */
-.list-header { grid-template-columns: 28px 52px minmax(0, 1fr) 150px 110px 140px 100px auto; }
-.job-card { grid-template-columns: 28px 52px minmax(0, 1fr) 150px 110px 140px 100px auto; }
+.list-header { grid-template-columns: 28px 52px minmax(0, 1fr) 100px 120px 100px 100px 100px auto; }
 .job-select { display: grid; place-items: center; }
 .job-select input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
 .bulk-bar {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-  padding: 10px 14px; margin: 0 0 12px; box-shadow: var(--shadow);
+  padding: 10px 14px; margin: 0 0 16px; box-shadow: var(--shadow);
 }
 .bulk-bar.hidden { display: none; }
 .bulk-bar #bulk-count { font-weight: 700; margin-right: auto; }
 .danger-text { color: var(--red); }
-.sort-label { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; color: var(--text-2); }
 
 /* ---- 0.7.0 settings extras ---- */
 .check-list { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -620,12 +695,6 @@ textarea#mirrors, textarea#set-smart-watchlist {
 /* Stepped first-run wizard (0.7.2). */
 .wiz-steps { color: var(--muted); font-size: 13px; margin: 2px 0 14px; }
 .wiz-nav { display: flex; gap: 8px; align-items: center; }
-.wiz-preview { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-top: 12px; }
-.wiz-preview-row { display: flex; gap: 10px; align-items: center; }
-.wiz-preview-tile { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent-text); font-size: 14px; flex-shrink: 0; }
-.wiz-preview-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wiz-preview-speed { color: var(--muted); font-size: 13px; flex-shrink: 0; }
-.wiz-preview-bar { margin: 10px 0; }
 
 /* Settings search + per-section reset (0.7.2). */
 .settings-search { width: 100%; margin: 0 0 4px; }
@@ -723,12 +792,6 @@ textarea#mirrors, textarea#set-smart-watchlist {
 [data-theme="liquid"] .segmented button.active { background: rgba(255, 255, 255, 0.85); }
 [data-theme="liquid"] .bar { background: rgba(28, 39, 51, 0.12); }
 
-/* Appearance live preview (0.7.2): restyles itself with theme/accent. */
-.appearance-preview { border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 4px 0 12px; }
-.appearance-preview-row { display: flex; gap: 10px; align-items: center; }
-.appearance-preview-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.appearance-preview-speed { color: var(--muted); font-size: 13px; flex-shrink: 0; }
-
 /* Download stage pipeline chips (0.7.2). */
 .stage-chips { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
 .stage-chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
@@ -767,6 +830,17 @@ textarea#mirrors, textarea#set-smart-watchlist {
  * and the Home preview need their own. */
 #view-home.hidden, #view-downloads.hidden, #home-preview.hidden { display: none; }
 .home-view { max-width: 720px; margin: 0 auto; padding: 48px 16px 24px; }
+/* Home finally has a title (framed-sheet: one h1 per view, 18–24px).
+   The paste pill stays the one dominant action; the subtitle states
+   the job in one line instead of a greeting. */
+.home-title { margin: 0 0 8px; font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -0.01em; text-align: center; text-wrap: balance; }
+.home-subtitle { margin: 0 0 20px; font-size: 14px; line-height: 1.5; color: var(--text-2); text-align: center; }
+.home-status:empty { display: none; }
+/* On Home, YouTube and Grab are secondary actions: quiet panels, not
+   competing filled buttons. The top-bar YouTube button on Downloads
+   keeps its red fill; this rule is scoped to the Home hero only. */
+.home-actions .yt-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: none; }
+.home-actions .yt-btn:hover { background: var(--panel-2); }
 .home-pill {
   display: flex; align-items: center; gap: 8px;
   background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
@@ -789,7 +863,7 @@ textarea#mirrors, textarea#set-smart-watchlist {
 .home-status { text-align: center; }
 
 /* Downloads-view filter chips (status) + category/speed controls. */
-.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.filter-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
 .chip {
   background: var(--panel); border: 1px solid var(--border); color: var(--text-2);
   border-radius: 999px; padding: 7px 16px; font-size: 13px; font-weight: 600;
@@ -821,3 +895,585 @@ body.sidebar-collapsed #bottom-bar { left: 76px; }
    for the 0.7.3 screenshot overflow: the row is now a column layout
    and the textarea is clamped to the row width). */
 textarea#set-smart-watchlist { max-width: 100%; min-width: 0; }
+
+/* Narrow window bottom bar (audit P0 fix): once the sidebar is a top
+   bar, the 212px left offset (and the omni floating-pill offsets)
+   must not apply. These rules sit last so they beat the
+   collapsed-sidebar and omni offsets above, at equal specificity. */
+@media (max-width: 820px) {
+  #bottom-bar,
+  body.sidebar-collapsed #bottom-bar { left: 0; right: 0; bottom: 0; border-radius: 0; }
+  [data-theme="omni"] #bottom-bar,
+  [data-theme="omni"] body.sidebar-collapsed #bottom-bar { left: 12px; right: 12px; bottom: 12px; }
+  /* Narrow job cards: the date no longer pushes itself to the far
+     right edge, where it wrapped alone on its own line. */
+  .job-meta-line .job-date { margin-left: 0; }
+}
+
+/* ---- 0.8.0 overhaul: motion + spacing discipline ----
+ * Applied from animate / modern-web-design / design-taste-frontend,
+ * translated to this existing theme system: NO new palette, font or
+ * logo, and NO new gradients — the brand gradient on the logo and
+ * progress fills stays exactly as it was. Changes are: consistent
+ * 4/8/16 spacing already used elsewhere is kept (cards stay 16px
+ * padding, list gap 16px); every transition is transform/opacity or a
+ * short fill-width ease and under 300ms; hover feedback is gated to
+ * fine pointers so touch devices never get a stuck hover state;
+ * press feedback is a small scale (never scale(0)); and the OS-level
+ * prefers-reduced-motion setting is honoured in addition to the
+ * in-app reduce-effects toggle. */
+.job-card:active { transform: translateY(0); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07); }
+@media (hover: hover) and (pointer: fine) {
+  .job-card:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1); }
+}
+/* The ungated hover rule above still applies on touch screens, where
+ * a tap leaves a stuck hover state — reset it for coarse pointers. */
+@media (hover: none) {
+  .job-card:hover { transform: none; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07); }
+}
+.bar > div { transition: width 0.25s ease; }
+.chunk > div { transition: width 0.25s ease; }
+.disk-bar > div { transition: width 0.25s ease; }
+.tool-btn { transition: background 0.15s ease, transform 0.12s ease; }
+.tool-btn:active { transform: scale(0.97); }
+/* 0.8.0 queue start/stop controls in the sidebar nav. */
+.queue-ctl {
+  margin-left: 4px; opacity: 0.55; padding: 2px 6px;
+  border-radius: 999px; cursor: pointer; font-size: 12px;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.queue-ctl:hover { opacity: 1; background: var(--panel-2); }
+.queue-ctl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; opacity: 1; }
+/* OS-level reduced motion (the in-app toggle already covers the
+ * same ground; this one follows the system setting, which the
+ * app previously ignored entirely). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+
+/* ---- Complete redesign: "Transfer desk" ----
+ * Direction (ui-ux-pro-max --design-system: Minimalism & Swiss Style,
+ * light + dark supported; app-screens run): colour goes on data, not
+ * chrome. The shell is an open plane — sidebar on the page ground,
+ * separated by one hairline, not a floating card. KPIs are type, not
+ * tiles: the stats strip is a hairline-divided strip with the label
+ * above the value. The active nav item is a neutral panel fill with a
+ * 3px accent bar, not an accent flood. Job cards are transfer strips:
+ * tile, name, status text, then a full-width progress track at the
+ * foot. One radius system (12px controls, 14–16px surfaces), one
+ * gutter (28px desktop), display face for titles only. Every colour
+ * comes from the existing theme variables, so all 13 themes keep
+ * switching; themed sidebars (glass/liquid/omni) keep their own
+ * backgrounds via their higher-specificity rules below.
+ * Motion (animate skill): transform/opacity only, 150–250ms, strong
+ * ease-out; hover gated to fine pointers; the 0.8.0 global
+ * prefers-reduced-motion rule still kills transitions system-wide. */
+:root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); }
+
+/* Radius system + flat primary/secondary buttons (no resting glow). */
+.download-btn, .new-task-btn { border-radius: 12px; box-shadow: none; padding: 13px 26px; font-size: 15px; }
+.secondary-btn { border-radius: 12px; padding: 12px 20px; }
+.secondary-btn.small-btn { padding: 8px 14px; font-size: 13px; }
+.yt-btn, .tool-btn { border-radius: 12px; padding: 12px 18px; font-size: 14px; }
+.view-btn { width: 44px; height: 44px; border-radius: 12px; }
+.download-btn:active, .new-task-btn:active { transform: scale(0.98); }
+.download-btn, .new-task-btn, .secondary-btn, .yt-btn, .tool-btn, .view-btn, .icon-btn, .nav-item, .chip {
+  transition: background 0.2s var(--ease-out), border-color 0.2s var(--ease-out), color 0.2s var(--ease-out), transform 0.15s var(--ease-out), box-shadow 0.2s var(--ease-out);
+}
+#url, .field select, .field input[type="number"], .setting-select, .setting-input { border-radius: 12px; }
+
+/* ---- Downloads toolbar: title row + hairline stats strip ---- */
+.toolbar { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 8px 16px; margin-bottom: 24px; }
+.toolbar h1 { order: 1; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+.list-count { order: 2; }
+.toolbar .stats { order: 3; grid-column: 1 / -1; display: flex; gap: 40px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 14px 0; }
+.toolbar .stats.collapsed { display: none; }
+.toolbar .stat-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.toolbar .stat-label { order: -1; font-size: 12px; margin-bottom: 2px; }
+
+/* ---- Filter row: underline tabs, not pills ---- */
+.filter-chips { border-bottom: 1px solid var(--border); padding-bottom: 0; margin-bottom: 24px; gap: 4px; }
+.chip { background: transparent; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 12px 14px; font-size: 14px; }
+.chip:hover { background: transparent; color: var(--text); }
+.chip.active { background: transparent; color: var(--text); border-bottom-color: var(--accent); font-weight: 700; }
+
+/* ---- Job list: transfer strips ---- */
+.job-list { gap: 12px; }
+.job-card { border-radius: 14px; padding: 18px 20px; box-shadow: none; }
+@media (hover: hover) and (pointer: fine) {
+  .job-card:hover { transform: none; box-shadow: none; background: var(--panel-2); border-color: var(--border); }
+}
+@media (hover: none) {
+  .job-card:hover { transform: none; box-shadow: none; background: var(--panel); }
+}
+.tile { width: 56px; height: 56px; border-radius: 12px; }
+.tile .tile-icon { font-size: 20px; }
+.job-name { font-size: 16px; font-weight: 700; }
+.job-meta-line { font-size: 13px; margin-top: 6px; }
+.job-meta-line .pct { font-size: 20px; font-variant-numeric: tabular-nums; }
+.job-meta-line .speed { font-weight: 700; font-variant-numeric: tabular-nums; }
+.job-meta-line .sizes, .job-meta-line .eta { font-variant-numeric: tabular-nums; }
+.job-path { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar { height: 10px; margin-top: 12px; }
+.chunk-bar { margin-top: 8px; }
+.stage-chip { font-size: 12px; padding: 3px 10px; }
+.pill { font-size: 12px; font-weight: 700; padding: 3px 10px; }
+.icon-btn { width: 40px; height: 40px; border-radius: 12px; }
+
+/* ---- Menus, bulk bar, empty state: flat panels ---- */
+.add-card { border: 1px solid var(--border); box-shadow: none; border-radius: 16px; }
+.actions-menu { border-radius: 14px; padding: 8px; min-width: 240px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); }
+.actions-menu .tool-btn { border-radius: 10px; padding: 11px 14px; }
+.ctx-menu { border-radius: 14px; padding: 8px; }
+.ctx-menu button { border-radius: 10px; padding: 10px 14px; }
+.bulk-bar { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; }
+.empty { box-shadow: none; border: 1px solid var(--border); padding: 64px 20px; }
+.empty-icon { box-shadow: none; }
+.empty h3 { font-size: 22px; }
+.empty .download-btn { margin-top: 20px; }
+
+/* ---- Home: left-aligned command panel, not a centred hero ---- */
+.home-view { max-width: 1280px; margin: 0 auto; padding: 8px 0 24px; }
+.home-hero { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 32px; text-align: left; }
+.home-title { font-size: 30px; letter-spacing: -0.02em; text-align: left; margin-bottom: 10px; }
+.home-subtitle { font-size: 15px; text-align: left; margin-bottom: 24px; }
+.home-pill { border-radius: 14px; padding: 8px 8px 8px 20px; box-shadow: none; min-height: 56px; }
+#home-url { font-size: 16px; }
+.home-actions { justify-content: flex-start; margin-top: 22px; gap: 12px; }
+.home-actions .download-btn { padding: 13px 28px; }
+.home-preview { border-radius: 14px; box-shadow: none; }
+.home-status { text-align: left; }
+
+/* ---- Desktop shell (min-width so the ≤820px top-bar mode is untouched) ---- */
+@media (min-width: 821px) {
+  .sidebar { width: 240px; padding: 20px 16px; gap: 20px; background: var(--bg); border-right: 1px solid var(--border); }
+  .brand { padding: 0 8px 16px; border-bottom: 1px solid var(--border); }
+  .brand-icon { width: 48px; height: 48px; border-radius: 14px; }
+  .brand-text { font-size: 13px; letter-spacing: 0.02em; line-height: 1.4; }
+  .nav { gap: 4px; }
+  .nav-item { padding: 12px 14px; font-size: 14px; font-weight: 600; border-radius: 10px; }
+  .nav-item .nav-icon { width: 20px; font-size: 15px; }
+  .nav-item.active { background: var(--panel); color: var(--text); font-weight: 700; outline: none; box-shadow: inset 3px 0 0 var(--accent); }
+  .nav-item.active .count { background: var(--panel-2); color: var(--text-2); }
+  [data-theme="dark"] .nav-item.active { background: var(--panel); color: var(--text); outline: none; box-shadow: inset 3px 0 0 var(--accent); }
+  [data-theme="omni"] .nav-item.active { background: var(--panel); color: var(--text); outline: none; box-shadow: inset 3px 0 0 var(--accent); }
+  .queues-head h4, .disk-card h4 { font-size: 11px; letter-spacing: 0.08em; }
+  .queues-head h4 { margin: 20px 0 8px; }
+  .queue-add input { padding: 11px 12px; border-radius: 10px; font-size: 14px; }
+  .sidebar-foot { gap: 16px; }
+  .disk-card { background: var(--panel); border: 1px solid var(--border); padding: 16px; }
+  .disk-bar { height: 8px; }
+  .disk-text { display: flex; flex-direction: column; gap: 2px; }
+  .disk-text span:first-child { font-size: 18px; font-weight: 700; color: var(--text); }
+  .gear-btn { padding: 10px 12px; border-radius: 10px; }
+  .main { padding: 28px 28px 96px; }
+  .topbar { padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+  .search-box { height: 46px; max-width: 560px; border-radius: 12px; }
+  #search { font-size: 15px; }
+  #bottom-bar { left: 240px; }
+  [data-theme="omni"] #bottom-bar { left: 260px; }
+}
+
+/* ---- Premium redesign: "Mission control" (supersedes Transfer desk where it conflicts) ----
+ * Direction: the transfer itself is the identity — tabular numerals,
+ * speed as the hero number, progress as the dominant element. Colour
+ * stays on data (status, speed, progress), never on chrome: flat
+ * panels, one hairline, no gradients, no glass, no decorative art.
+ * Every colour comes from the existing theme variables, so all 13
+ * themes keep switching; the dark theme below is only refined, not
+ * replaced. Tokens are aliases over theme variables, never raw hex
+ * that would freeze one theme. Motion (animate skill): transform /
+ * opacity only, under 300ms, strong ease-out, hover gated to fine
+ * pointers; the global prefers-reduced-motion rule still kills it
+ * system-wide. No generic .hidden rule exists in this sheet, so
+ * every newly hidden-toggled element gets its own rule here. */
+:root {
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06), 0 10px 28px rgba(0, 0, 0, 0.07);
+}
+/* Refined dark default: deeper ground, quieter hairlines, softer shadow. */
+[data-theme="dark"] {
+  --bg: #0a0a12;
+  --panel: #14141f;
+  --panel-2: #1c1c2b;
+  --sidebar: #0d0d16;
+  --border: #232334;
+  --text: #f4f4f7;
+  --text-2: #c9c9d6;
+  --muted: #8e8ea1;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+/* New views follow the no-generic-.hidden convention. */
+#view-dashboard.hidden, #dash-view-failed.hidden, .dlg-actions .hidden { display: none; }
+#view-dashboard:not(.hidden) { animation: view-fade 0.18s ease; }
+/* Top-bar trio hides on Dashboard exactly as on Home: the Dashboard
+ * has its own quick actions, so the trio would only duplicate them. */
+body.on-dashboard-view #yt-task, body.on-dashboard-view #grab-task, body.on-dashboard-view #new-task { display: none; }
+
+/* ---- Status pills: dot + label, never colour alone (the label is the meaning) ---- */
+.pill { display: inline-flex; align-items: center; gap: 6px; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.pill.queued { background: var(--panel-2); color: var(--text-2); }
+.pill.retrying { background: #fef3c7; color: #b45309; }
+[data-theme="dark"] .pill.queued { background: var(--panel-2); color: var(--text-2); }
+[data-theme="dark"] .pill.retrying { background: #451a03; color: #fcd34d; }
+
+/* ---- Dashboard: KPIs as type, one overall track, attention callout, recent list ---- */
+.dashboard-view { max-width: 1280px; margin: 0 auto; padding: 8px 0 24px; }
+.dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 24px; }
+.dash-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; }
+.dash-subtitle { color: var(--muted); font-size: 14px; margin: 0; }
+.dash-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.dash-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 16px 0; margin-bottom: 20px; }
+.dash-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dash-stat-label { font-size: 12px; color: var(--muted); }
+.dash-stat-value { font-size: 26px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.dash-overall { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 16px; }
+.dash-overall-top { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; font-size: 13px; }
+.dash-overall-label { font-weight: 600; }
+.dash-overall-text { color: var(--text-2); }
+.dash-overall-bar { height: 8px; margin-top: 0; }
+.dash-attention { display: flex; justify-content: space-between; align-items: center; gap: 16px; background: var(--panel-2); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 20px; font-size: 14px; }
+.dash-attention.has-failed { background: #fef3c7; color: #92400e; }
+[data-theme="dark"] .dash-attention.has-failed { background: #451a03; color: #fcd34d; }
+.dash-columns { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
+.dash-panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; }
+.dash-panel-title { font-size: 15px; font-weight: 700; margin: 0 0 12px; }
+.dash-panel-title:not(:first-child) { margin-top: 20px; }
+.dash-recent-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: transparent; border: none; border-bottom: 1px solid var(--border); padding: 11px 4px; color: var(--text); }
+.dash-recent-row:last-child { border-bottom: none; }
+.dash-recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.dash-recent-row .pill { margin-top: 0; flex-shrink: 0; }
+.dash-recent-pct { color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.dash-disk { font-size: 14px; margin: 0 0 8px; }
+@media (hover: hover) and (pointer: fine) {
+  .dash-recent-row:hover { background: var(--panel-2); }
+}
+
+/* ---- Downloads list: tighter strips, name truncates, meta wraps, actions pinned ---- */
+.job-card { padding: 16px 18px; gap: 16px; }
+.job-main { min-width: 0; flex: 1; }
+.job-top { display: flex; align-items: flex-start; gap: 12px; }
+.job-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-status { flex-shrink: 0; }
+.job-status .pill { margin-top: 0; }
+.job-actions { flex-shrink: 0; display: flex; gap: 4px; }
+.job-meta-line { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.job-card .bar { height: 8px; margin-top: 12px; }
+
+/* ---- Sidebar queue counts ---- */
+.queue-count { margin-left: auto; background: var(--panel-2); border-radius: 999px; padding: 1px 7px; font-size: 12px; color: var(--text-2); }
+.queue-count:empty { display: none; }
+.nav-item.active .queue-count { background: var(--panel-2); color: var(--text-2); }
+
+/* ---- Add download card: one dominant URL row, honest destination line ---- */
+.url-row { display: flex; gap: 10px; }
+.url-row #url { flex: 1; min-width: 0; }
+.dest-line { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.dest-line .mono { color: var(--text-2); overflow-wrap: anywhere; }
+.link-btn { background: none; border: none; padding: 0; font-size: inherit; color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.link-btn:hover { color: var(--text); }
+
+/* ---- Settings: category nav row + wider modal; sections do not move ---- */
+.settings-modal { max-width: 720px; }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.settings-nav-btn { background: transparent; border: 1px solid transparent; border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.settings-nav-btn:hover { color: var(--text); background: var(--panel-2); }
+.settings-nav-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+.settings-section { scroll-margin-top: 8px; }
+#queue-limits .folder-controls { flex-wrap: wrap; }
+#queue-limits input[data-queue-name] { min-width: 140px; flex: 1; }
+#queue-limits input[data-queue-limit] { width: 130px; }
+
+/* ---- Details dialog: real actions, long values wrap instead of overflowing ---- */
+.dlg-actions { display: flex; gap: 10px; margin: 16px 0 4px; }
+body.detail #url, body.detail #destination, body.detail #command { overflow-wrap: anywhere; }
+
+/* ---- Wizard + toast: same panel language, no new decoration ---- */
+#wizard-overlay .modal { border-radius: var(--radius-xl); }
+#wizard-overlay .modal-head h2 { font-size: 22px; letter-spacing: -0.01em; }
+.toast { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius-lg); }
+
+/* ---- Narrow windows: dashboard stacks, stats wrap ---- */
+@media (max-width: 900px) {
+  .dash-stats { grid-template-columns: repeat(3, 1fr); }
+  .dash-columns { grid-template-columns: 1fr; }
+  .dash-head { align-items: flex-start; }
+}
+@media (max-width: 560px) {
+  .dash-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash-stat-value { font-size: 22px; }
+}
+
+/* ---- Behance/Envato-inspired pass: home chips, yt pill rows, dash ring ---- */
+.home-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.home-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.home-chip:hover { color: var(--text); border-color: var(--accent); }
+.pill-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill-row button { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.pill-row button:hover { color: var(--text); }
+.pill-row button.active { background: var(--panel); color: var(--text); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.dash-overall-row { display: flex; gap: 16px; align-items: center; }
+.dash-overall-main { flex: 1; min-width: 0; }
+.dash-overall-main .dash-overall-top { margin-bottom: 10px; }
+.dash-ring-wrap { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+.dash-ring { width: 56px; height: 56px; display: block; }
+.dash-ring circle { fill: none; stroke-width: 5; }
+.dash-ring-track { stroke: var(--border); }
+.dash-ring-fill { stroke: var(--accent); stroke-linecap: round; }
+.dash-ring-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+
+/* ---- Download Manager Pro (Figma Community patterns, app data only) ----
+ * List mode becomes a dense data table: the existing card DOM is laid
+ * out as a grid row whose columns match the .list-header labels, so
+ * updateCard keeps every class hook it already used. Grid mode is
+ * untouched (stacked cards). All colours are theme tokens, so the
+ * table reads in dark AND light; no new palette, no new font. */
+#view-downloads:not(.grid-view) .list-header {
+  display: grid;
+  grid-template-columns: 28px 52px minmax(0, 1fr) 100px 120px 100px 100px 100px auto;
+  gap: 8px 14px; align-items: center;
+  padding: 0 16px 10px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+}
+#view-downloads:not(.grid-view) .job-card {
+  display: grid;
+  grid-template-columns: 28px 52px minmax(0, 1fr) 100px 120px 100px 100px 100px auto;
+  gap: 2px 14px; align-items: center;
+  padding: 12px 16px;
+}
+#view-downloads:not(.grid-view) .job-main,
+#view-downloads:not(.grid-view) .job-top,
+#view-downloads:not(.grid-view) .job-meta-line { display: contents; }
+#view-downloads:not(.grid-view) .job-select { grid-column: 1; grid-row: 1 / 9; align-self: center; }
+#view-downloads:not(.grid-view) .tile { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+#view-downloads:not(.grid-view) .job-name { grid-column: 3; grid-row: 1; }
+#view-downloads:not(.grid-view) .job-status { grid-column: 8; grid-row: 1; justify-self: start; }
+#view-downloads:not(.grid-view) .job-actions { grid-column: 9; grid-row: 1; justify-self: end; }
+#view-downloads:not(.grid-view) .pct { grid-column: 3; grid-row: 2; }
+#view-downloads:not(.grid-view) .sizes { grid-column: 4; grid-row: 2; }
+#view-downloads:not(.grid-view) .downloaded { grid-column: 5; grid-row: 2; }
+#view-downloads:not(.grid-view) .speed { grid-column: 6; grid-row: 2; }
+#view-downloads:not(.grid-view) .eta { grid-column: 7; grid-row: 2; }
+#view-downloads:not(.grid-view) .job-path { grid-column: 3 / -1; grid-row: 3; margin-top: 2px; }
+#view-downloads:not(.grid-view) .job-date { grid-column: 3 / -1; grid-row: 4; font-size: 12px; color: var(--muted); }
+#view-downloads:not(.grid-view) .bar { grid-column: 3 / -1; grid-row: 5; }
+#view-downloads:not(.grid-view) .chunk-bar { grid-column: 3 / -1; grid-row: 6; }
+#view-downloads:not(.grid-view) .stage-chips { grid-column: 3 / -1; grid-row: 7; }
+#view-downloads:not(.grid-view) .job-error { grid-column: 3 / -1; grid-row: 8; }
+#view-downloads:not(.grid-view) .sizes,
+#view-downloads:not(.grid-view) .downloaded,
+#view-downloads:not(.grid-view) .speed,
+#view-downloads:not(.grid-view) .eta { font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (hover: hover) and (pointer: fine) {
+  #view-downloads:not(.grid-view) .job-card:hover { transform: none; box-shadow: none; background: var(--panel-2); border-color: var(--border); }
+}
+/* Narrow window: the table collapses back to the stacked card. */
+@media (max-width: 900px) {
+  #view-downloads:not(.grid-view) .list-header { display: none; }
+  #view-downloads:not(.grid-view) .job-card { display: flex; flex-direction: column; align-items: stretch; }
+  #view-downloads:not(.grid-view) .job-main { display: block; }
+  #view-downloads:not(.grid-view) .job-top { display: flex; }
+  #view-downloads:not(.grid-view) .job-meta-line { display: flex; }
+}
+@media (max-width: 820px) {
+  .sidebar #cat-nav { display: none; }
+}
+/* Pro toolbar row: reuses existing buttons, no new behaviour. */
+.pro-actions { order: -1; display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+/* Disk widget: tabular figures, free space emphasised (live data only). */
+.disk-card .disk-text { font-variant-numeric: tabular-nums; }
+.disk-card #disk-free { font-weight: 700; color: var(--text); }
+/* Home entry pattern: the label stays visible after typing starts. */
+#view-home .field-label { margin-bottom: 8px; }
+/* Details dialog: hairline rows + tabular figures, behaviour untouched. */
+.detail .row { border-bottom: 1px solid var(--border); padding-bottom: 9px; }
+.detail .row .mono { font-variant-numeric: tabular-nums; }
+
+/* ---- Glassmorphism pass (redesign only, default dark theme) ----
+ * Frosted-glass treatment for the DEFAULT dark look only (dark is the
+ * app default; a "system" choice resolving to dark gets it too). Every
+ * rule here is scoped to the dark theme, so the other 12 themes keep
+ * their own solid tokens and keep switching exactly as before — this
+ * section deliberately does NOT touch light, high-contrast, e-ink or
+ * any other theme, where translucency over a bright ground would wash
+ * text out. It also does NOT touch the existing glass/liquid themes,
+ * which keep their own frosted rules above. No new palette, font,
+ * logo, IPC channel or behaviour: surfaces only, status colours and
+ * the Mission-control active-nav pattern (neutral fill + accent bar)
+ * are preserved verbatim.
+ * Direction (ui-ux-pro-max glassmorphism style: blur 10-20px, 1px
+ * light hairline, translucent white 10-30%, contrast 4.5:1 checked;
+ * modern-web-design glassmorphism section; design-taste-frontend /
+ * frontend-ui-engineering token discipline): translucency comes from
+ * color-mix over the existing panel tokens, never from a new palette,
+ * so text stays on a near-solid dark ground and contrast holds.
+ * Performance (low-end PCs, and the rule the old glass theme already
+ * set): backdrop-filter blur sits ONLY on large, static panels
+ * (sidebar, dialogs, Dashboard panels, Add card, Home hero, menus,
+ * toast). It is NEVER on the per-download rows or the fixed bottom
+ * bar, which repaint on every progress/speed refresh — those get
+ * translucency, hairline and shadow only. The existing
+ * reduce-effects toggle already kills backdrop-filter everywhere
+ * (via an !important rule, above), and the global
+ * prefers-reduced-motion rule kills transitions, so no new motion
+ * is added here at all (animate skill, CSS translation only).
+ * Blur is modest throughout: 16px on panels, 18px on dialogs, 12px
+ * on the search box — never the huge values that smear text. */
+[data-theme="dark"] {
+  --glass-panel: color-mix(in srgb, var(--panel) 82%, transparent);
+  --glass-panel-2: color-mix(in srgb, var(--panel-2) 80%, transparent);
+  --glass-sidebar: color-mix(in srgb, var(--sidebar) 72%, transparent);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+/* Dark gradient wash behind everything (dark theme only). Kept deep
+ * and quiet — indigo and teal glows at low alpha over the existing
+ * dark ground — so frosted panels read as glass, not as colour. */
+[data-theme="dark"] body {
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(99, 102, 241, 0.16), rgba(0, 0, 0, 0) 60%),
+    radial-gradient(700px 420px at -10% 110%, rgba(34, 211, 238, 0.10), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(160deg, rgba(20, 20, 38, 1) 0%, var(--bg) 45%, rgba(13, 18, 32, 1) 100%);
+  background-attachment: fixed;
+}
+/* Sidebar: frosted, hairline edge, still readable; active nav keeps
+ * the Mission-control neutral fill + 3px accent bar, just glassed. */
+[data-theme="dark"] .sidebar {
+  background: var(--glass-sidebar);
+  border-right: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+[data-theme="dark"] .nav-item.active {
+  background: var(--glass-panel);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+[data-theme="dark"] .disk-card {
+  background: var(--glass-panel-2);
+  border: 1px solid var(--glass-border);
+}
+/* Dashboard: frosted stat panels over the gradient wash. */
+[data-theme="dark"] .dash-overall,
+[data-theme="dark"] .dash-panel {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+/* Downloads rows: translucent + hairline + soft shadow, NO blur
+ * (see performance note above — rows repaint on every refresh).
+ * The list-mode hover re-asserts the translucent fill so the Pro
+ * table hover does not snap back to a solid panel. */
+[data-theme="dark"] .job-card {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+[data-theme="dark"] #view-downloads:not(.grid-view) .job-card:hover {
+  background: var(--glass-panel-2);
+}
+[data-theme="dark"] .job-card .bar {
+  background: rgba(255, 255, 255, 0.10);
+}
+/* Add card, Home hero/preview/pill, Details card: frosted statics. */
+[data-theme="dark"] .add-card,
+[data-theme="dark"] .home-hero,
+[data-theme="dark"] .home-preview,
+[data-theme="dark"] .detail-card {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+[data-theme="dark"] .home-pill {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+/* Dialogs, menus, toast: frosted overlays over the dimmed backdrop. */
+[data-theme="dark"] .modal {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(18px) saturate(1.3);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+}
+[data-theme="dark"] .ctx-menu,
+[data-theme="dark"] .actions-menu,
+[data-theme="dark"] .toast {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+/* Bottom aggregate bar and empty state: translucent, no blur
+ * (bottom bar text refreshes constantly; empty state keeps the
+ * flat panel language with a hairline instead). */
+[data-theme="dark"] #bottom-bar {
+  background: var(--glass-sidebar);
+  border-top: 1px solid var(--glass-border);
+}
+[data-theme="dark"] .empty,
+[data-theme="dark"] .bulk-bar {
+  background: var(--glass-panel);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
+}
+/* Inputs, search, segmented controls, pill rows: translucent fill
+ * only — borders and focus rings are left to the existing rules so
+ * the accent focus indicator is never overridden. */
+[data-theme="dark"] .search-box {
+  background: var(--glass-panel);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+}
+[data-theme="dark"] .search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+[data-theme="dark"] #url,
+[data-theme="dark"] .yt-url-row input,
+[data-theme="dark"] .field select,
+[data-theme="dark"] .field input[type="number"],
+[data-theme="dark"] .setting-select,
+[data-theme="dark"] .setting-input,
+[data-theme="dark"] .queue-add input {
+  background: var(--glass-panel-2);
+}
+[data-theme="dark"] .segmented {
+  background: var(--glass-panel-2);
+}
+[data-theme="dark"] .segmented button.active {
+  background: var(--glass-panel);
+}
+[data-theme="dark"] .pill-row button {
+  background: var(--glass-panel-2);
+}
+[data-theme="dark"] .pill-row button.active {
+  background: var(--glass-panel);
+}
+[data-theme="dark"] .settings-nav-btn.active {
+  background: var(--glass-panel-2);
+}

@@ -10,6 +10,7 @@ import { LiveHlsSession } from "../stream/live.js";
 import {
   TorrentSession,
   createWebTorrentClient,
+  isPathWithinDir,
   parseMagnetName,
   torrentDisplayName,
   type WebTorrentClientLike,
@@ -1004,9 +1005,15 @@ export class AppDownloadManager {
 
   async resume(id: string): Promise<AppJob | undefined> {
     const job = this.jobs.get(id);
-    if (!job || job.status !== "paused") return job;
+    if (!job || (job.status !== "paused" && job.status !== "failed")) return job;
+    // 0.8.0: a failed job retries from here too. Previously resume was
+    // a no-op for failed jobs, so the UI had no way to retry a failure
+    // except deleting and re-adding it by hand. Clearing the auto-retry
+    // timer first keeps a scheduled retry from double-queueing it.
+    this.clearRetry(id);
     job.status = "queued";
     job.error = null;
+    job.retryCount = 0;
     this.pending.push(id);
     this.emitJobs();
     void this.pump();
@@ -1024,7 +1031,9 @@ export class AppDownloadManager {
       this.torrentSessions.delete(id);
       const base = job.torrentOutDir ?? "";
       for (const file of owned) {
-        if (base && file.startsWith(base)) await unlink(file).catch(() => undefined);
+        // Resolved containment, not a string prefix: "/a/b-evil/x"
+        // starts with "/a/b" but is a different folder.
+        if (base && isPathWithinDir(base, file)) await unlink(file).catch(() => undefined);
       }
     }
     const liveSession = this.liveSessions.get(id);
@@ -1072,6 +1081,67 @@ export class AppDownloadManager {
     this.jobs.delete(id);
     this.emitJobs();
     void this.pump();
+    return true;
+  }
+
+  /**
+   * 0.8.0: pause every active job in one queue. This is deliberately
+   * just per-job pause — there is no separate paused-queue state in
+   * the pump, so "queue stopped" here means its jobs are paused.
+   */
+  async pauseQueue(queueId: string): Promise<number> {
+    let count = 0;
+    for (const job of this.list()) {
+      if ((job.queueId ?? "main") !== queueId) continue;
+      if (job.status !== "downloading" && job.status !== "queued") continue;
+      await this.pause(job.id);
+      count++;
+    }
+    return count;
+  }
+
+  /** 0.8.0: resume every paused job in one queue (failed jobs are not
+   *  swept up here — they have their own per-card / retry-all path). */
+  async resumeQueue(queueId: string): Promise<number> {
+    let count = 0;
+    for (const job of this.list()) {
+      if ((job.queueId ?? "main") !== queueId) continue;
+      if (job.status !== "paused") continue;
+      await this.resume(job.id);
+      count++;
+    }
+    return count;
+  }
+
+  /**
+   * 0.8.0: remove a COMPLETED job and its file from disk. This is
+   * separate from cancel() on purpose: cancel() deliberately keeps
+   * completed files (Clear Completed must not delete downloads).
+   * The file is unlinked only when its resolved destination is inside
+   * the downloads dir — anything outside it is left untouched, and
+   * the list entry is still removed. Non-completed jobs are refused
+   * outright (returns false, job untouched) so an in-progress file
+   * can never be deleted through this path. YouTube jobs have no
+   * single destination file (yt-dlp adds the extension), so their
+   * files are removed by the same video-id cleanup cancel() uses
+   * for unfinished jobs.
+   */
+  async deleteWithFile(id: string): Promise<boolean> {
+    const job = this.jobs.get(id);
+    if (!job || job.status !== "completed") return false;
+    const destination = job.destination;
+    const youtubeOutDir = job.youtubeOutDir;
+    const youtubeVideoId = job.youtubeVideoId ?? null;
+    const inside = Boolean(destination) &&
+      destination !== this.downloadsDir &&
+      isPathWithinDir(this.downloadsDir, destination);
+    const removed = await this.cancel(id);
+    if (!removed) return false;
+    if (job.isYoutube && youtubeOutDir && youtubeVideoId) {
+      await cleanupYoutubeFiles(youtubeOutDir, youtubeVideoId).catch(() => undefined);
+      return true;
+    }
+    if (inside) await unlink(destination).catch(() => undefined);
     return true;
   }
 
@@ -1528,4 +1598,90 @@ export class AppDownloadManager {
       this.emitJobs();
     }
   }
+}
+
+/* ---- 0.8.0: .txt import + CSV export (pure, unit-tested) ---- */
+
+/** Is this line a downloadable link? http/https, magnet, ftp/ftps. */
+const IMPORT_URL = /^(https?:\/\/|magnet:|ftps?:\/\/)/i;
+
+/**
+ * Parse a .txt import file: one URL per line. Blank lines are ignored;
+ * every other line that is not a valid, non-duplicate link counts as
+ * skipped (invalid lines and exact duplicates alike), so the UI can
+ * report "added / skipped / failed" with nothing silently dropped.
+ */
+export function parseImportUrls(text: string): { urls: string[]; skipped: number } {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  let skipped = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (/\s/.test(line)) {
+      skipped++;
+      continue;
+    }
+    const match = IMPORT_URL.exec(line);
+    if (!match || !line.slice(match[0].length)) {
+      skipped++;
+      continue;
+    }
+    if (seen.has(line)) {
+      skipped++;
+      continue;
+    }
+    seen.add(line);
+    urls.push(line);
+  }
+  return { urls, skipped };
+}
+
+/** YouTube watch/shorts links must go through yt-dlp, never plain HTTP
+ * (a plain download of a watch page would save the page as a file). */
+export function isYoutubeImportUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be";
+  } catch {
+    return false;
+  }
+}
+
+function csvField(value: string): string {
+  if (/[",\n\r]/.test(value) || value !== value.trim()) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+/**
+ * The current job list as CSV (CRLF, so Windows tools open it cleanly),
+ * followed by a small stats summary computed from the same list.
+ * Columns: name, url, status, size, downloaded, category, queue.
+ * size/downloaded are bytes from the job's latest progress, or blank
+ * when the job has never reported progress.
+ */
+export function jobsToCsv(jobs: AppJob[]): string {
+  const rows: string[][] = [["name", "url", "status", "size", "downloaded", "category", "queue"]];
+  for (const job of jobs) {
+    rows.push([
+      job.filename,
+      job.url,
+      job.status,
+      job.progress?.totalBytes != null ? String(job.progress.totalBytes) : "",
+      job.progress?.downloadedBytes != null ? String(job.progress.downloadedBytes) : "",
+      job.category,
+      job.queueId ?? "main",
+    ]);
+  }
+  rows.push([]);
+  rows.push(["metric", "value"]);
+  rows.push(["total_jobs", String(jobs.length)]);
+  rows.push(["completed_jobs", String(jobs.filter((job) => job.status === "completed").length)]);
+  rows.push(["failed_jobs", String(jobs.filter((job) => job.status === "failed").length)]);
+  rows.push(["total_downloaded_bytes", String(
+    jobs.reduce((sum, job) => sum + (job.progress?.downloadedBytes ?? 0), 0),
+  )]);
+  return rows.map((row) => row.map(csvField).join(",")).join("\r\n") + "\r\n";
 }
