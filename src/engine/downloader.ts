@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, rename, unlink } from "node:fs/promises";
+import { mkdir, open, rename, stat, unlink } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 import type { FileHandle } from "node:fs/promises";
 import { categorize, filenameFromUrl } from "./categories.js";
@@ -138,9 +138,17 @@ export class DownloadSessionImpl implements DownloadSession {
     this.job.status = "downloading";
     this.job.error = null;
     await mkdir(dirname(winLongPath(this.job.partPath)), { recursive: true });
+    // Open mode: a resume (any segment already has bytes) must never
+    // truncate the .part file — the old "w+" branch for unknown totals
+    // wiped a partial unknown-length download on resume. A fresh
+    // download keeps the old behaviour (w+ for unknown totals, so no
+    // stale bytes trail the new file).
+    const isResume = this.job.segments.some((s) => s.downloaded > 0);
+    const openMode =
+      this.job.totalBytes !== null || isResume ? "r+" : "w+";
     this.handle = await open(
       winLongPath(this.job.partPath),
-      this.job.totalBytes !== null ? "r+" : "w+",
+      openMode,
     ).catch(async () => open(winLongPath(this.job.partPath), "w+"));
     if (this.job.totalBytes !== null) {
       await this.handle.truncate(this.job.totalBytes);
@@ -176,6 +184,16 @@ export class DownloadSessionImpl implements DownloadSession {
       (sum, segment) => sum + segment.downloaded,
       0,
     );
+    // Never report "completed" for a short file: segment completion
+    // alone is not proof when the total is known (§8).
+    if (
+      this.job.totalBytes !== null &&
+      this.job.downloadedBytes !== this.job.totalBytes
+    ) {
+      throw new Error(
+        `Download ended with ${this.job.downloadedBytes} bytes, expected ${this.job.totalBytes}`,
+      );
+    }
     if (this.job.totalBytes === null) {
       this.job.totalBytes = this.job.downloadedBytes;
       const only = this.job.segments[0];
@@ -521,13 +539,10 @@ export async function resumeDownload(
     // Offline / probe failed: resume from the journal as-is, segment
     // fetches will surface the real error with retries.
   }
-  const partExists = await open(partPath, "r")
-    .then(async (handle) => {
-      await handle.close();
-      return true;
-    })
-    .catch(() => false);
-  if (!partExists) needsRestart = true;
+  const partSize = await stat(partPath)
+    .then((info) => info.size)
+    .catch(() => null);
+  if (partSize === null) needsRestart = true;
 
   if (needsRestart) {
     await unlink(partPath).catch(() => undefined);
@@ -535,13 +550,41 @@ export async function resumeDownload(
     const session = await startDownload(existing.url, existing.destination, options);
     return session;
   }
+  // §8 reconciliation: the journal alone is not proof the bytes are
+  // on disk. A .part file truncated after a crash used to be padded
+  // with zeros by run()'s truncate() while the journal still claimed
+  // those bytes downloaded — a silently corrupt "completed" file.
+  // Clamp every segment to what the file actually contains, so the
+  // missing bytes are re-downloaded instead of being skipped.
+  for (const segment of job.segments) {
+    if (
+      !Number.isFinite(segment.start) ||
+      !Number.isFinite(segment.end) ||
+      !Number.isFinite(segment.downloaded) ||
+      segment.start < 0 ||
+      segment.end < segment.start ||
+      segment.downloaded < 0
+    ) {
+      // Corrupt journal geometry cannot be repaired by clamping;
+      // restart from scratch rather than produce a corrupt file.
+      await unlink(partPath).catch(() => undefined);
+      await unlink(`${partPath}.json`).catch(() => undefined);
+      return startDownload(existing.url, existing.destination, options);
+    }
+    const length = segment.end - segment.start + 1;
+    if (segment.downloaded > length) segment.downloaded = length;
+    const required = segment.start + segment.downloaded;
+    if (partSize !== null && required > partSize) {
+      segment.downloaded = Math.max(0, partSize - segment.start);
+    }
+    segment.done = segment.downloaded >= length;
+  }
+  job.downloadedBytes = job.segments.reduce(
+    (sum, segment) => sum + segment.downloaded,
+    0,
+  );
   job.status = "queued";
   job.error = null;
-  // Re-mark segments that claim more than their length as incomplete.
-  for (const segment of job.segments) {
-    if (segment.downloaded >= segment.end - segment.start + 1) segment.done = true;
-    else segment.done = false;
-  }
   const session = new DownloadSessionImpl(job, options);
   session.start().catch(() => undefined);
   return session;

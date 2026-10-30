@@ -8,6 +8,8 @@ import { AppDownloadManager, parseImportUrls, isYoutubeImportUrl, jobsToCsv } fr
 import { BridgeServer } from "../dist/bridge/server.js";
 import { writeBridgeInfo, deleteBridgeInfo } from "../dist/bridge/bridgeInfo.js";
 import { checkForUpdates } from "../dist/app/updater.js";
+import { assertTrustedIpcSender, assertIpcArgs } from "./ipc-guard.mjs";
+import { verifyFileSha256, parseSha256Sums, parseSingleSha256 } from "./tool-verify.mjs";
 import { fetchYoutubeInfo } from "../dist/yt/info.js";
 import { findTools } from "../dist/yt/locate.js";
 import { grabPageLinks } from "../dist/app/grabber.js";
@@ -453,24 +455,36 @@ function createTray() {
   }
 }
 
-ipcMain.handle("dm:add", async (_event, url, opts) => {
+// 1.0.4 Phase 1: every IPC handler goes through this wrapper, so no
+// handler can forget the sender check. The windows object is built at
+// invoke time, not registration time, so windows created later (dialogs)
+// and windows closed/recreated (main, widget) are always current.
+function ipcHandle(channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    assertTrustedIpcSender(event, { mainWindow, widgetWindow, dialogWindows });
+    assertIpcArgs(channel, args);
+    return handler(event, ...args);
+  });
+}
+
+ipcHandle("dm:add", async (_event, url, opts) => {
   const job = await manager.add(url, opts ?? {});
   return job;
 });
-ipcMain.handle("dm:pause", async (_event, id) => manager.pause(id));
-ipcMain.handle("dm:resume", async (_event, id) => manager.resume(id));
-ipcMain.handle("dm:cancel", async (_event, id) => manager.cancel(id));
-ipcMain.handle("dm:list", async () => manager.list());
-ipcMain.handle("dm:queues", async () => manager.listQueues());
-ipcMain.handle("dm:create-queue", async (_event, name) => manager.createQueue(name));
-ipcMain.handle("dm:rename-queue", async (_event, id, name) => manager.renameQueue(id, name));
-ipcMain.handle("dm:delete-queue", async (_event, id) => manager.deleteQueue(id));
-ipcMain.handle("dm:move-job", async (_event, jobId, queueId) => manager.moveToQueue(jobId, queueId));
-ipcMain.handle("dm:set-queue-limit", async (_event, queueId, bytesPerSec) => manager.setQueueSpeedLimit(queueId, bytesPerSec));
-ipcMain.handle("dm:add-torrent", async (_event, url, opts) => manager.addTorrent(url, opts ?? {}));
-ipcMain.handle("dm:add-stream", async (_event, url, opts) => manager.addStream(url, opts ?? {}));
-ipcMain.handle("dm:grab", async (_event, pageUrl) => grabPageLinks(pageUrl));
-ipcMain.handle("dm:choose-file", async () => {
+ipcHandle("dm:pause", async (_event, id) => manager.pause(id));
+ipcHandle("dm:resume", async (_event, id) => manager.resume(id));
+ipcHandle("dm:cancel", async (_event, id) => manager.cancel(id));
+ipcHandle("dm:list", async () => manager.list());
+ipcHandle("dm:queues", async () => manager.listQueues());
+ipcHandle("dm:create-queue", async (_event, name) => manager.createQueue(name));
+ipcHandle("dm:rename-queue", async (_event, id, name) => manager.renameQueue(id, name));
+ipcHandle("dm:delete-queue", async (_event, id) => manager.deleteQueue(id));
+ipcHandle("dm:move-job", async (_event, jobId, queueId) => manager.moveToQueue(jobId, queueId));
+ipcHandle("dm:set-queue-limit", async (_event, queueId, bytesPerSec) => manager.setQueueSpeedLimit(queueId, bytesPerSec));
+ipcHandle("dm:add-torrent", async (_event, url, opts) => manager.addTorrent(url, opts ?? {}));
+ipcHandle("dm:add-stream", async (_event, url, opts) => manager.addStream(url, opts ?? {}));
+ipcHandle("dm:grab", async (_event, pageUrl) => grabPageLinks(pageUrl));
+ipcHandle("dm:choose-file", async () => {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Choose a cookies file",
@@ -479,12 +493,12 @@ ipcMain.handle("dm:choose-file", async () => {
   });
   return result.canceled ? null : (result.filePaths[0] ?? null);
 });
-ipcMain.handle("dm:get-info", async () => ({
+ipcHandle("dm:get-info", async () => ({
   name: "Shahjahan Download Manager",
   version: app.getVersion(),
 }));
-ipcMain.handle("dm:get-settings", async () => ({ ...manager.getSettings(), completionAction, clipboardMonitor, nativeNotifications, firstRunDone, notificationPrefs }));
-ipcMain.handle("dm:set-settings", async (_event, partial) => {
+ipcHandle("dm:get-settings", async () => ({ ...manager.getSettings(), completionAction, clipboardMonitor, nativeNotifications, firstRunDone, notificationPrefs }));
+ipcHandle("dm:set-settings", async (_event, partial) => {
   const clean = {};
   if (partial && Number.isInteger(partial.maxConcurrent)) {
     clean.maxConcurrent = Math.max(1, Math.min(10, partial.maxConcurrent));
@@ -558,7 +572,7 @@ ipcMain.handle("dm:set-settings", async (_event, partial) => {
   if (Object.keys(clean).length) saveSettings(clean);
   return { ...manager.getSettings(), completionAction, clipboardMonitor, nativeNotifications, firstRunDone, notificationPrefs };
 });
-ipcMain.handle("dm:choose-folder", async () => {
+ipcHandle("dm:choose-folder", async () => {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Choose downloads folder",
@@ -566,18 +580,18 @@ ipcMain.handle("dm:choose-folder", async () => {
   });
   return result.canceled ? null : (result.filePaths[0] ?? null);
 });
-ipcMain.handle("dm:open-downloads-folder", async () => {
+ipcHandle("dm:open-downloads-folder", async () => {
   const dir = manager.getSettings().downloadsDir;
   const error = await shell.openPath(dir);
   return error || null;
 });
-ipcMain.handle("dm:open-file", async (_event, id) => {
+ipcHandle("dm:open-file", async (_event, id) => {
   const job = manager.get(id);
   if (!job || !existsSync(job.destination)) return false;
   const error = await shell.openPath(job.destination);
   return !error;
 });
-ipcMain.handle("dm:open-job-folder", async (_event, id) => {
+ipcHandle("dm:open-job-folder", async (_event, id) => {
   const job = manager.get(id);
   if (!job) return false;
   if (existsSync(job.destination)) {
@@ -588,13 +602,13 @@ ipcMain.handle("dm:open-job-folder", async (_event, id) => {
   return !error;
 });
 // --- YouTube (yt-dlp) -------------------------------------------------
-ipcMain.handle("dm:yt-tools", async () => resolveTools());
-ipcMain.handle("dm:yt-info", async (_event, url) => {
+ipcHandle("dm:yt-tools", async () => resolveTools());
+ipcHandle("dm:yt-info", async (_event, url) => {
   const tools = await resolveTools();
   if (!tools.ytDlp) throw new Error("yt-dlp is not installed. Press “Download yt-dlp” in the YouTube card first.");
   return fetchYoutubeInfo(tools.ytDlp, url);
 });
-ipcMain.handle("dm:yt-add", async (_event, url, opts) => {
+ipcHandle("dm:yt-add", async (_event, url, opts) => {
   return manager.addYoutube(url, opts ?? { options: { kind: "video" } });
 });
 
@@ -640,7 +654,7 @@ function runCommand(command, args) {
   });
 }
 
-ipcMain.handle("dm:yt-install-tool", async (_event, tool) => {
+ipcHandle("dm:yt-install-tool", async (_event, tool) => {
   if (process.platform !== "win32") {
     return { ok: false, error: "Automatic tool download is Windows-only. Install yt-dlp / ffmpeg with your system package manager." };
   }
@@ -649,28 +663,55 @@ ipcMain.handle("dm:yt-install-tool", async (_event, tool) => {
   try {
     if (tool === "ytdlp") {
       const dest = join(binDir, "yt-dlp.exe");
-      await downloadFile("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", dest);
+      // 1.0.4 Phase 2: download to a temp file and verify BEFORE touching
+      // the installed tool, so a mismatch leaves the old tool intact.
+      const tmp = join(app.getPath("temp"), "yt-dlp-download.exe");
+      const sumsFile = join(app.getPath("temp"), "yt-dlp-SHA2-256SUMS");
+      try {
+        await downloadFile("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", tmp);
+        await downloadFile("https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", sumsFile);
+        const expected = parseSha256Sums(readFileSync(sumsFile, "utf8"), "yt-dlp.exe");
+        await verifyFileSha256(tmp, expected, "yt-dlp.exe");
+        try {
+          renameSync(tmp, dest);
+        } catch {
+          writeFileSync(dest, readFileSync(tmp));
+        }
+      } finally {
+        rmSync(tmp, { force: true });
+        rmSync(sumsFile, { force: true });
+      }
     } else if (tool === "ffmpeg") {
       const tmpDir = app.getPath("temp");
       const zip = join(tmpDir, "ffmpeg-essentials.zip");
+      const shaFile = join(tmpDir, "ffmpeg-essentials.zip.sha256");
       const extractDir = join(tmpDir, "ffmpeg-extract");
-      rmSync(extractDir, { recursive: true, force: true });
-      await downloadFile("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", zip);
-      await runCommand("powershell", ["-NoProfile", "-NonInteractive", "-Command", "Expand-Archive", "-Path", zip, "-DestinationPath", extractDir, "-Force"]);
-      const subdirs = readdirSync(extractDir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-      let found = null;
-      for (const subdir of subdirs) {
-        const candidate = join(extractDir, subdir.name, "bin", "ffmpeg.exe");
-        if (existsSync(candidate)) { found = candidate; break; }
-      }
-      if (!found) throw new Error("ffmpeg.exe was not found inside the downloaded package.");
+      // 1.0.4 Phase 2: verify the zip BEFORE extracting or touching the
+      // installed tool; the finally block cleans temp files on any failure.
       try {
-        renameSync(found, join(binDir, "ffmpeg.exe"));
-      } catch {
-        writeFileSync(join(binDir, "ffmpeg.exe"), readFileSync(found));
+        rmSync(extractDir, { recursive: true, force: true });
+        await downloadFile("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", zip);
+        await downloadFile("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256", shaFile);
+        const expected = parseSingleSha256(readFileSync(shaFile, "utf8"));
+        await verifyFileSha256(zip, expected, "ffmpeg-release-essentials.zip");
+        await runCommand("powershell", ["-NoProfile", "-NonInteractive", "-Command", "Expand-Archive", "-Path", zip, "-DestinationPath", extractDir, "-Force"]);
+        const subdirs = readdirSync(extractDir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+        let found = null;
+        for (const subdir of subdirs) {
+          const candidate = join(extractDir, subdir.name, "bin", "ffmpeg.exe");
+          if (existsSync(candidate)) { found = candidate; break; }
+        }
+        if (!found) throw new Error("ffmpeg.exe was not found inside the downloaded package.");
+        try {
+          renameSync(found, join(binDir, "ffmpeg.exe"));
+        } catch {
+          writeFileSync(join(binDir, "ffmpeg.exe"), readFileSync(found));
+        }
+      } finally {
+        rmSync(zip, { force: true });
+        rmSync(shaFile, { force: true });
+        rmSync(extractDir, { recursive: true, force: true });
       }
-      rmSync(zip, { force: true });
-      rmSync(extractDir, { recursive: true, force: true });
     } else {
       return { ok: false, error: `Unknown tool: ${tool}` };
     }
@@ -680,7 +721,7 @@ ipcMain.handle("dm:yt-install-tool", async (_event, tool) => {
   }
 });
 
-ipcMain.handle("dm:disk-space", async () => {
+ipcHandle("dm:disk-space", async () => {
   try {
     let dir = manager.getSettings().downloadsDir;
     while (dir && !existsSync(dir)) {
@@ -695,17 +736,17 @@ ipcMain.handle("dm:disk-space", async () => {
   }
 });
 // 0.7.0: mini widget toggle, torrent stop-seeding, download stats.
-ipcMain.handle("dm:toggle-widget", async () => {
+ipcHandle("dm:toggle-widget", async () => {
   toggleWidgetWindow();
   return widgetWindow !== null;
 });
-ipcMain.handle("dm:stop-seeding", async (_event, id) => manager.stopSeeding(id));
-ipcMain.handle("dm:stats", async () => manager.getStats());
-ipcMain.handle("dm:open-details", async (_event, id) => {
+ipcHandle("dm:stop-seeding", async (_event, id) => manager.stopSeeding(id));
+ipcHandle("dm:stats", async () => manager.getStats());
+ipcHandle("dm:open-details", async (_event, id) => {
   openDetails(id);
   return true;
 });
-ipcMain.handle("dm:import-urls", async () => {
+ipcHandle("dm:import-urls", async () => {
   // 0.8.0: read a .txt file (one URL per line) and add every kept link.
   // YouTube links go through yt-dlp as Video/best — a plain HTTP fetch
   // of a watch page would just save the page as a file. A failed add
@@ -743,7 +784,7 @@ ipcMain.handle("dm:import-urls", async () => {
   }
   return { added, skipped, failed };
 });
-ipcMain.handle("dm:export-csv", async () => {
+ipcHandle("dm:export-csv", async () => {
   // 0.8.0: write the current job list + a stats summary as CSV.
   if (!mainWindow || mainWindow.isDestroyed()) return false;
   const picked = await dialog.showSaveDialog(mainWindow, {
@@ -761,13 +802,15 @@ ipcMain.handle("dm:export-csv", async () => {
 });
 // 0.8.0: delete a completed job AND its file (list-only delete stays
 // on dm:cancel). Queue start/stop = pause/resume that queue's jobs.
-ipcMain.handle("dm:delete-with-file", async (_event, id) => manager.deleteWithFile(id));
-ipcMain.handle("dm:pause-queue", async (_event, queueId) => manager.pauseQueue(queueId));
-ipcMain.handle("dm:resume-queue", async (_event, queueId) => manager.resumeQueue(queueId));
+ipcHandle("dm:delete-with-file", async (_event, id) => manager.deleteWithFile(id));
+ipcHandle("dm:pause-queue", async (_event, queueId) => manager.pauseQueue(queueId));
+ipcHandle("dm:resume-queue", async (_event, queueId) => manager.resumeQueue(queueId));
 
 async function checkUpdatesOnce() {
   // User-confirmed only: never downloads or installs automatically.
-  // Set DM_UPDATE_URL to a JSON feed {version, url} to enable this.
+  // Feed URL: DEFAULT_UPDATE_FEED_URL in src/app/updater.ts (public
+  // feed repo, raw.githubusercontent.com); DM_UPDATE_URL overrides it
+  // for testing.
   try {
     const result = await checkForUpdates(app.getVersion());
     if (result.available && result.url && mainWindow && !mainWindow.isDestroyed()) {
